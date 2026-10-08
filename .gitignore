@@ -4,8 +4,6 @@
 node_modules/
 .actual/
 data/
-dev/.cache/
-dev/.cache-instance-*/
 dist/
 build/
 *.log
@@ -14,4 +12,6 @@ build/
 
 data-instance-*/
 .DS_Store
-dev/data.new/
+dev/*
+!dev/.env.example
+!dev/docker-compose.yml

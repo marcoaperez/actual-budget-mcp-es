@@ -280,14 +280,14 @@ describe('buildFetch', () => {
 describe('findBudget', () => {
   const rows = [
     { name: 'Personal', group_id: 'g-1', deleted: 0 },
-    { name: 'Taiko', group_id: 'g-2', deleted: 0 },
+    { name: 'Otro', group_id: 'g-2', deleted: 0 },
     { name: 'Viejo', group_id: 'g-3', deleted: 1 },
   ];
   it('returns the group_id of the named budget', () => {
     expect(findBudget(rows, 'Personal')).toBe('g-1');
   });
   it('never selects a deleted budget, and lists the available names', () => {
-    expect(() => findBudget(rows, 'Viejo')).toThrow(/Personal.*Taiko/);
+    expect(() => findBudget(rows, 'Viejo')).toThrow(/Personal.*Otro/);
     expect(() => findBudget(rows, 'Personnal')).toThrow(/Personnal/);
   });
 });

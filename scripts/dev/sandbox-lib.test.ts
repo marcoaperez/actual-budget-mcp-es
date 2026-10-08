@@ -6,7 +6,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   NEUTRALISE_SQL, SOURCE_KEYS_BACKUP, parseEnvFile, setEnvValue, missingKeys, buildFetch, findBudget,
-  portHolderIsSandbox, buildDevEnv, checkGuard, DEV_URL, forwardSignals, missingCopyMessage,
+  portHolderIsSandbox, keepOnly, cacheEntries, buildDevEnv, checkGuard, DEV_URL, forwardSignals, missingCopyMessage,
 } from './sandbox-lib.js';
 
 describe('env file', () => {
@@ -41,11 +41,34 @@ describe('buildFetch', () => {
     expect(f.ssh).toBe('prod');
     expect(f.remote).toBe('cat "$(ls -1t /backups/*/actual.tar.gz | head -1)"');
     expect(f.stripComponents).toBe(4);
+    expect(f.member).toBe('opt/x/actual/data');
+  });
+  it('backup: member filter and strip count do not depend on a trailing slash', () => {
+    const a = buildFetch('backup', env);
+    const b = buildFetch('backup', { ...env, DEV_SOURCE_TAR_MEMBER_PREFIX: 'opt/x/actual/data' });
+    expect(b.member).toBe(a.member);
+    expect(b.stripComponents).toBe(a.stripComponents);
   });
   it('cold: stops the container, tars the data dir, always starts it again', () => {
     const f = buildFetch('cold', env);
     expect(f.remote).toBe('docker stop actual >/dev/null && sudo tar -czf - -C /opt/x/actual data ; s=$?; docker start actual >/dev/null || s=97; exit $s');
     expect(f.stripComponents).toBe(1);
+    expect(f.member).toBe('data');
+    expect(buildFetch('cold', { ...env, DEV_SOURCE_DATA_DIR: '/opt/x/actual/data/' }).member).toBe('data');
+  });
+});
+
+describe('keepOnly / cacheEntries', () => {
+  it('keeps server-files/account.sqlite*, user-files and .migrate; removes everything else', () => {
+    expect(keepOnly(['server-files', 'user-files', '.migrate', 'config.json', '.DS_Store'], ['account.sqlite', 'account.sqlite-wal', 'x.bak']))
+      .toEqual(['config.json', '.DS_Store', 'server-files/x.bak']);
+  });
+  it('removes nothing from a clean copy', () => {
+    expect(keepOnly(['server-files', 'user-files', '.migrate'], ['account.sqlite'])).toEqual([]);
+  });
+  it('cacheEntries picks .cache and .cache-instance-*, nothing else', () => {
+    expect(cacheEntries(['.cache', '.cache-instance-12', '.cache.bak', 'data', '.env', 'docker-compose.yml']))
+      .toEqual(['.cache', '.cache-instance-12']);
   });
 });
 
@@ -62,14 +85,14 @@ describe('missingCopyMessage', () => {
 describe('findBudget', () => {
   const rows = [
     { name: 'Personal', group_id: 'g-1', deleted: 0 },
-    { name: 'Taiko', group_id: 'g-2', deleted: 0 },
+    { name: 'Otro', group_id: 'g-2', deleted: 0 },
     { name: 'Viejo', group_id: 'g-3', deleted: 1 },
   ];
   it('returns the group_id of the named budget', () => {
     expect(findBudget(rows, 'Personal')).toBe('g-1');
   });
   it('never selects a deleted budget, and lists the available names', () => {
-    expect(() => findBudget(rows, 'Viejo')).toThrow(/Personal.*Taiko/);
+    expect(() => findBudget(rows, 'Viejo')).toThrow(/Personal.*Otro/);
     expect(() => findBudget(rows, 'Personnal')).toThrow(/Personnal/);
   });
 });
@@ -92,11 +115,16 @@ describe('NEUTRALISE_SQL on a toy account.sqlite', () => {
     execFileSync('sqlite3', [db,
       'CREATE TABLE secrets(name TEXT PRIMARY KEY, value BLOB); CREATE TABLE auth(method TEXT PRIMARY KEY, extra_data TEXT);' +
       'CREATE TABLE sessions(token TEXT PRIMARY KEY); CREATE TABLE files(id TEXT PRIMARY KEY, group_id TEXT, deleted BOOLEAN, name TEXT);' +
-      "INSERT INTO secrets VALUES('gocardless_secretId','x'); INSERT INTO auth VALUES('password','hash');" +
-      "INSERT INTO sessions VALUES('t'); INSERT INTO files VALUES('f','g',0,'Personal');"]);
+      "INSERT INTO secrets VALUES('gocardless_secretId','TOY-SECRET-VALUE-123'); INSERT INTO auth VALUES('password','TOY-HASH-VALUE-456');" +
+      "INSERT INTO sessions VALUES('TOY-TOKEN-VALUE-789'); INSERT INTO files VALUES('f','g',0,'Personal');"]);
     execFileSync('sqlite3', [db, NEUTRALISE_SQL]);
     const counts = execFileSync('sqlite3', [db, 'select (select count(*) from secrets),(select count(*) from auth),(select count(*) from sessions),(select count(*) from files);'], { encoding: 'utf8' }).trim();
     expect(counts).toBe('0|0|0|1');
+    // Borrado de verdad: ni rastro de los valores en los bytes del fichero.
+    const bytes = fs.readFileSync(db);
+    for (const v of ['TOY-SECRET-VALUE-123', 'TOY-HASH-VALUE-456', 'TOY-TOKEN-VALUE-789']) {
+      expect(bytes.includes(v), v).toBe(false);
+    }
   });
 });
 
@@ -111,10 +139,12 @@ describe('dev/.env.example', () => {
 
 describe('.gitignore', () => {
   it('keeps the copy, the cache and dev/.env out of git', () => {
-    for (const p of ['dev/data/server-files/account.sqlite', 'dev/.cache/x', 'dev/data.new/server-files/account.sqlite', 'dev/.cache-instance-123/x', 'dev/.env']) {
+    for (const p of ['dev/data/server-files/account.sqlite', 'dev/.cache/x', 'dev/data.new/server-files/account.sqlite', 'dev/.cache-instance-123/x', 'dev/.env', 'dev/data.old/x', 'dev/.cache.bak/x']) {
       expect(() => execFileSync('git', ['check-ignore', '-q', p])).not.toThrow();
     }
-    expect(() => execFileSync('git', ['check-ignore', '-q', 'dev/.env.example'])).toThrow();
+    for (const p of ['dev/.env.example', 'dev/docker-compose.yml']) {
+      expect(() => execFileSync('git', ['check-ignore', '-q', p]), p).toThrow();
+    }
   });
 });
 

@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import * as readline from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import {
-  DEV_PASSWORD, DEV_URL, NEUTRALISE_SQL, SOURCE_KEYS_BACKUP, SOURCE_KEYS_COLD, buildFetch, findBudget,
+  DEV_PASSWORD, DEV_URL, NEUTRALISE_SQL, cacheEntries, keepOnly, SOURCE_KEYS_BACKUP, SOURCE_KEYS_COLD, buildFetch, findBudget,
   missingCopyMessage, missingKeys, parseEnvFile, portHolderIsSandbox, setEnvValue,
 } from './sandbox-lib.js';
 
@@ -18,7 +18,8 @@ const DATA = path.join(ROOT, 'dev', 'data');
 const STAGING = path.join(ROOT, 'dev', 'data.new');
 const STAGING_DB = path.join(STAGING, 'server-files', 'account.sqlite');
 const COMPOSE = ['compose', '-f', path.join(ROOT, 'dev', 'docker-compose.yml')];
-const SSH_OPTS = ['-o', 'ConnectTimeout=15'];
+const DEV_DIR = path.join(ROOT, 'dev');
+const SSH_OPTS = ['-o', 'ConnectTimeout=15', '-o', 'ServerAliveInterval=5', '-o', 'ServerAliveCountMax=3'];
 const cold = process.argv.includes('--cold');
 
 // Estado para la limpieza en caso de fallo o Ctrl+C.
@@ -50,7 +51,8 @@ const fail = (msg: string): never => {
   );
   process.exit(1);
 };
-process.on('SIGINT', () => fail('Interrumpido.'));
+// SIGTERM/SIGHUP (cerrar la terminal) también deben reiniciar producción en una copia en frío.
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(sig, () => fail('Interrumpido.'));
 
 const docker = (...args: string[]) => execFileSync('docker', [...COMPOSE, ...args], { stdio: 'inherit' });
 
@@ -101,7 +103,7 @@ async function main() {
   console.log(cold ? '→ Copia en frío desde producción…' : '→ Trayendo el último backup nocturno…');
   await new Promise<void>((resolve, reject) => {
     const ssh = spawn('ssh', [...SSH_OPTS, f.ssh, f.remote], { stdio: ['ignore', 'pipe', 'inherit'] });
-    const tar = spawn('tar', ['-xzf', '-', '-C', STAGING, `--strip-components=${f.stripComponents}`], { stdio: ['pipe', 'inherit', 'inherit'] });
+    const tar = spawn('tar', ['-xzf', '-', '-C', STAGING, `--strip-components=${f.stripComponents}`, f.member], { stdio: ['pipe', 'inherit', 'inherit'] });
     tar.stdin.on('error', () => {}); // si tar muere antes, que hable el código de salida
     ssh.stdout.pipe(tar.stdin);
     // Hay que mirar AMBOS códigos de salida: un ssh fallido con tar vacío no debe pasar por bueno.
@@ -122,9 +124,16 @@ async function main() {
   coldRecovery = null; // el comando remoto ya reinició el contenedor (ssh terminó con 0)
   if (!fs.existsSync(STAGING_DB)) fail(missingCopyMessage(cold ? 'cold' : 'backup'));
 
+  // Solo se queda lo que Actual necesita (config.json, .DS_Store, etc. fuera; .migrate se conserva).
+  const serverFilesDir = path.join(STAGING, 'server-files');
+  for (const rel of keepOnly(fs.readdirSync(STAGING), fs.readdirSync(serverFilesDir))) {
+    fs.rmSync(path.join(STAGING, rel), { recursive: true, force: true });
+  }
+
   // 2) Neutralizar y validar el presupuesto ANTES de tocar nada.
   console.log('→ Neutralizando la copia (sin credenciales del banco, contraseña de pruebas)…');
   execFileSync('sqlite3', [STAGING_DB, NEUTRALISE_SQL]);
+  for (const ext of ['-wal', '-shm']) fs.rmSync(`${STAGING_DB}${ext}`, { force: true });
   const rows = JSON.parse(
     execFileSync('sqlite3', ['-json', STAGING_DB, 'select name, group_id, coalesce(deleted, 0) as deleted from files;'], { encoding: 'utf8' }) || '[]',
   );
@@ -141,6 +150,8 @@ async function main() {
   docker('down');
   removedOld = true;
   fs.rmSync(DATA, { recursive: true, force: true });
+  // La caché del MCP pertenece al sandbox anterior: si sobrevive, el MCP sirve datos viejos.
+  for (const e of cacheEntries(fs.readdirSync(DEV_DIR))) fs.rmSync(path.join(DEV_DIR, e), { recursive: true, force: true });
   fs.renameSync(STAGING, DATA);
   swapped = true;
 
@@ -160,6 +171,7 @@ async function main() {
   console.log(`✓ Sandbox listo en ${DEV_URL}`);
   console.log(`  Presupuestos en la copia: ${rows.filter((r: any) => !r.deleted).map((r: any) => r.name).join(', ')}`);
   console.log(`  El MCP actual-dev abrirá: ${env.DEV_BUDGET_NAME}`);
+  console.log('  Reinicia Claude Code (o el servidor actual-dev) para que se reconecte al sandbox nuevo.');
   console.log('  Abre Claude Code en este repo: el servidor MCP "actual-dev" apunta solo aquí.');
 }
 

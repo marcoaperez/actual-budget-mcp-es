@@ -7,7 +7,10 @@ import { fileURLToPath } from 'node:url';
 export const DEV_URL = 'http://localhost:5007';
 export const DEV_PORT = 5007;
 export const DEV_PASSWORD = 'actual-dev';
-export const NEUTRALISE_SQL = 'DELETE FROM secrets; DELETE FROM auth; DELETE FROM sessions;';
+// Borra Y borra de verdad: secure_delete sobrescribe las páginas y VACUUM reescribe el fichero,
+// así los secretos no quedan en páginas libres. El checkpoint previo vuelca el WAL al fichero.
+export const NEUTRALISE_SQL =
+  'PRAGMA wal_checkpoint(TRUNCATE); PRAGMA secure_delete=ON; DELETE FROM secrets; DELETE FROM auth; DELETE FROM sessions; VACUUM;';
 export const SOURCE_KEYS_BACKUP = ['DEV_SOURCE_SSH', 'DEV_SOURCE_BACKUP_GLOB', 'DEV_SOURCE_TAR_MEMBER_PREFIX', 'DEV_BUDGET_NAME'] as const;
 export const SOURCE_KEYS_COLD = ['DEV_SOURCE_SSH', 'DEV_SOURCE_DATA_DIR', 'DEV_SOURCE_CONTAINER', 'DEV_BUDGET_NAME'] as const;
 
@@ -33,10 +36,29 @@ export function missingKeys(env: Record<string, string>, keys: readonly string[]
 
 const components = (p: string) => p.split('/').filter(Boolean).length;
 
+/** Lo único que Actual necesita de la copia: se borra el resto (config.json, .DS_Store…).
+ *  .migrate se CONSERVA: registra las migraciones del servidor. Devuelve rutas relativas a borrar.
+ *  Los -wal/-shm de account.sqlite se dejan hasta neutralizar (el checkpoint los necesita). */
+export function keepOnly(topLevel: string[], serverFiles: string[]): string[] {
+  const keepTop = new Set(['server-files', 'user-files', '.migrate']);
+  const out = topLevel.filter((e) => !keepTop.has(e));
+  if (topLevel.includes('server-files')) {
+    out.push(...serverFiles.filter((e) => !e.startsWith('account.sqlite')).map((e) => `server-files/${e}`));
+  }
+  return out;
+}
+
+/** Cachés del MCP de desarrollo dentro de dev/: la de la instancia principal y las por instancia. */
+export function cacheEntries(devEntries: string[]): string[] {
+  return devEntries.filter((e) => e === '.cache' || e.startsWith('.cache-instance-'));
+}
+
 export function buildFetch(mode: 'backup' | 'cold', env: Record<string, string>) {
   if (mode === 'backup') {
     return {
       ssh: env.DEV_SOURCE_SSH,
+      // Filtro de tar: solo se extrae el directorio de datos (sin barra final, para que valga con o sin ella).
+      member: env.DEV_SOURCE_TAR_MEMBER_PREFIX.replace(/\/+$/, ''),
       remote: `cat "$(ls -1t ${env.DEV_SOURCE_BACKUP_GLOB} | head -1)"`,
       stripComponents: components(env.DEV_SOURCE_TAR_MEMBER_PREFIX),
     };
@@ -46,6 +68,7 @@ export function buildFetch(mode: 'backup' | 'cold', env: Record<string, string>)
   const base = dir.slice(dir.lastIndexOf('/') + 1);
   return {
     ssh: env.DEV_SOURCE_SSH,
+    member: base,
     remote: `docker stop ${env.DEV_SOURCE_CONTAINER} >/dev/null && sudo tar -czf - -C ${parent} ${base} ; s=$?; docker start ${env.DEV_SOURCE_CONTAINER} >/dev/null || s=97; exit $s`,
     stripComponents: 1,
   };
