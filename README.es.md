@@ -33,7 +33,7 @@ Actual Budget self-hosted al que puedas acceder. En Macs Intel, Windows o Linux,
 ### Activar el acceso de escritura
 
 Con la casilla desactivada tienes las 13 tools de solo lectura. Actívala (Settings →
-Extensions → esta extensión → configurar) para añadir las 18 tools de escritura: editar y
+Extensions → esta extensión → configurar) para añadir las 19 tools de escritura: editar y
 categorizar movimientos, splits reales, repetitivos, asignación de presupuesto, notas de
 categoría, gestión de grupos de categorías/categorías, beneficiarios/transferencias y reglas
 de automatización. Claude Desktop pide tu aprobación antes de cada llamada salvo que le
@@ -126,7 +126,7 @@ Las tres primeras son obligatorias; el resto tienen valores por defecto.
 | `LOCALE` | No | `en-US` | Locale para formatear importes y fechas (ej. `es-ES`) |
 | `CURRENCY` | No | `USD` | Código ISO de moneda de 3 letras (ej. `EUR`) |
 | `SYNC_TTL_SECONDS` | No | `60` | Segundos que se cachea el sync antes de volver a sincronizar |
-| `ENABLE_WRITE` | No | `false` | Habilita las 18 tools de escritura (categorizar, splits, schedules, presupuesto, notas, grupos de categorías/categorías, beneficiarios/transferencias, reglas) |
+| `ENABLE_WRITE` | No | `false` | Habilita las 19 tools de escritura (categorizar, splits, schedules, presupuesto, notas, grupos de categorías/categorías, beneficiarios/transferencias, reglas) |
 | `MESSAGES_LANG` | No | `es` | Idioma de los mensajes de error del servidor: `es` o `en` |
 
 ## Herramientas disponibles
@@ -151,7 +151,7 @@ El servidor expone 13 herramientas de solo lectura:
 
 ## Herramientas de escritura
 
-Con `ENABLE_WRITE=true` el servidor expone además estas 18 herramientas de escritura:
+Con `ENABLE_WRITE=true` el servidor expone además estas 19 herramientas de escritura:
 
 | Herramienta | Descripción |
 |---|---|
@@ -180,6 +180,7 @@ Con `ENABLE_WRITE=true` el servidor expone además estas 18 herramientas de escr
 | Herramienta | Descripción |
 |---|---|
 | `set_transaction_transfer` | Convertir un movimiento normal en una transferencia con otra cuenta, apuntándolo al beneficiario de transferencia de esa cuenta. Actual crea y enlaza el movimiento correspondiente en la otra cuenta |
+| `apply_reconciliation_fixes` | Aplica las operaciones de conciliación que aceptes (enlazar, fusionar, crear transferencia), hasta 50 por llamada; cada una se revalida antes y se informa como aplicada, omitida (con el motivo) o fallida. Nunca toca movimientos conciliados y conserva el identificador de importación del banco |
 
 **Reglas**
 

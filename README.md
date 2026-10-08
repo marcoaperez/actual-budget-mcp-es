@@ -42,7 +42,7 @@ Actual Budget server you can reach. On Intel Macs, Windows or Linux, use
 ### Turning on write access
 
 With the checkbox off you get the 13 read-only tools. Turn it on (Settings → Extensions →
-this extension → configure) to add the 18 write tools: editing and categorizing transactions,
+this extension → configure) to add the 19 write tools: editing and categorizing transactions,
 real splits, scheduled transactions, budget assignment, category notes, managing category
 groups/categories, payees/transfers and automation rules. Claude Desktop asks for your
 approval before each call unless you grant it standing permission. The classification tools
@@ -127,7 +127,7 @@ The first three variables are required; the rest have defaults.
 | `LOCALE` | No | `en-US` | Locale for formatting amounts and dates (e.g. `es-ES`) |
 | `CURRENCY` | No | `USD` | 3-letter ISO currency code (e.g. `EUR`) |
 | `SYNC_TTL_SECONDS` | No | `60` | Seconds the sync is cached before re-syncing |
-| `ENABLE_WRITE` | No | `false` | Enables the 18 write tools (categorize, splits, schedules, budget, notes, category groups/categories, payees/transfers, rules) |
+| `ENABLE_WRITE` | No | `false` | Enables the 19 write tools (categorize, splits, schedules, budget, notes, category groups/categories, payees/transfers, rules) |
 | `MESSAGES_LANG` | No | `es` | Language of the server's error messages: `es` or `en` |
 
 ## Tools
@@ -152,7 +152,7 @@ Always available.
 | `find_transfer_issues` | Review a date range for transfers that are not linked, bank-imported transactions duplicated by manual ones, and bank transactions that should be transfers to a manual account; proposes each fix with a confidence (`alta`/`dudosa`) and writes nothing |
 | `reconcile_account` | Compare an account (id or name) with the balance the bank shows at the close of a date: Actual balance, difference, reconciled balance and, if they differ, the proposed fixes for that account and the transactions whose amount alone explains the gap. Writes nothing |
 
-### Write tools (18)
+### Write tools (19)
 
 Registered only when `ENABLE_WRITE=true`.
 
@@ -183,6 +183,7 @@ Registered only when `ENABLE_WRITE=true`.
 | Tool | Description |
 |---|---|
 | `set_transaction_transfer` | Turn an ordinary transaction into a transfer with another account, by pointing it at that account's transfer payee. Actual creates and links the matching transaction on the other account |
+| `apply_reconciliation_fixes` | Apply the reconciliation operations you accepted (link, merge, create transfer), up to 50 per call; each is revalidated first and reported as applied, skipped (with the reason) or failed. Never touches reconciled transactions and keeps every bank import id |
 
 **Rules**
 
