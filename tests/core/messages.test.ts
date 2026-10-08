@@ -364,3 +364,13 @@ function resumir(texto: string): string {
   const plano = texto.replace(/\s+/g, ' ').trim();
   return plano.length > 60 ? `${plano.slice(0, 60)}…` : plano;
 }
+
+describe('startAfterEnd', () => {
+  it('menciona ambas fechas en los dos idiomas', () => {
+    for (const l of ['es', 'en'] as const) {
+      const t = messagesFor(l).startAfterEnd('2026-09-30', '2026-09-01');
+      expect(t).toContain('2026-09-30');
+      expect(t).toContain('2026-09-01');
+    }
+  });
+});

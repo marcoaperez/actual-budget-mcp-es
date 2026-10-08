@@ -54,4 +54,8 @@ describe('find_transfer_issues', () => {
     const unknown = '99999999-9999-4999-8999-999999999999';
     await expect(tool.handler({ account_ids: [unknown] }, { api: apiWith([]), config: testConfig })).rejects.toThrow(unknown);
   });
+
+  it('rechaza un rango invertido en vez de devolver un resultado vacío', async () => {
+    await expect(tool.handler({ start_date: '2026-09-30', end_date: '2026-09-01' }, { api: apiWith([]), config: testConfig })).rejects.toThrow('2026-09-30');
+  });
 });

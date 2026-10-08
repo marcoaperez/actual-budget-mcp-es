@@ -132,7 +132,7 @@ The first three variables are required; the rest have defaults.
 
 ## Tools
 
-### Read tools (11)
+### Read tools (12)
 
 Always available.
 

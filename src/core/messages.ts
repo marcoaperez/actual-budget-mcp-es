@@ -110,6 +110,7 @@ const es = {
   ruleDeleteRejected: (id: string) => `Actual rechazó el borrado de la regla ${id}; vuelve a consultarla con get_rules`,
 
   // --- Conciliación ---
+  startAfterEnd: (start: string, end: string) => `rango de fechas invertido: start_date ${start} es posterior a end_date ${end}`,
   reasonLink: (days: number, unique: boolean) =>
     `Importes contrarios en dos cuentas con ${days} día(s) de diferencia` +
     (unique ? '; es la única pareja posible' : '; hay más de una pareja posible'),
@@ -225,6 +226,7 @@ const en: Messages = {
   ruleDeleteRejected: (id: string) => `Actual refused to delete rule ${id}; query it again with get_rules`,
 
   // --- Reconciliation ---
+  startAfterEnd: (start: string, end: string) => `inverted date range: start_date ${start} is after end_date ${end}`,
   reasonLink: (days: number, unique: boolean) =>
     `Opposite amounts in two accounts, ${days} day(s) apart` +
     (unique ? '; it is the only possible pair' : '; there is more than one possible pair'),

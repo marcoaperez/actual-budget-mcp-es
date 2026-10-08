@@ -31,6 +31,8 @@ export const tool: ToolDef = {
     const end = a.end_date ?? todayLocal();
     const start = a.start_date ?? addDays(end, -DEFAULT_RANGE_DAYS);
 
+    if (start > end) throw new Error(m.startAfterEnd(start, end));
+
     const detectInput = await loadDetectInput(api, { start: addDays(start, -LINK_MAX_DAYS), end: addDays(end, LINK_MAX_DAYS) });
     for (const id of a.account_ids ?? []) {
       if (!detectInput.accounts.some((acc) => acc.id === id)) throw new Error(m.accountNotFound(id));
