@@ -46,9 +46,16 @@ export function buildFetch(mode: 'backup' | 'cold', env: Record<string, string>)
   const base = dir.slice(dir.lastIndexOf('/') + 1);
   return {
     ssh: env.DEV_SOURCE_SSH,
-    remote: `docker stop ${env.DEV_SOURCE_CONTAINER} >/dev/null && sudo tar -czf - -C ${parent} ${base} ; docker start ${env.DEV_SOURCE_CONTAINER} >/dev/null`,
+    remote: `docker stop ${env.DEV_SOURCE_CONTAINER} >/dev/null && sudo tar -czf - -C ${parent} ${base} ; s=$?; docker start ${env.DEV_SOURCE_CONTAINER} >/dev/null; exit $s`,
     stripComponents: 1,
   };
+}
+
+/** Mensaje cuando la copia extraída no trae server-files/account.sqlite; depende del modo. */
+export function missingCopyMessage(mode: 'backup' | 'cold'): string {
+  return mode === 'backup'
+    ? 'La copia no trae server-files/account.sqlite: revisa DEV_SOURCE_TAR_MEMBER_PREFIX (y DEV_SOURCE_BACKUP_GLOB) en dev/.env.'
+    : 'La copia no trae server-files/account.sqlite: revisa DEV_SOURCE_DATA_DIR y DEV_SOURCE_CONTAINER en dev/.env, y que sudo funcione sin contraseña en el servidor.';
 }
 
 export function findBudget(rows: { name: string; group_id: string; deleted: number }[], name: string): string {

@@ -6,7 +6,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   NEUTRALISE_SQL, SOURCE_KEYS_BACKUP, parseEnvFile, setEnvValue, missingKeys, buildFetch, findBudget,
-  portHolderIsSandbox, buildDevEnv, checkGuard, DEV_URL, forwardSignals,
+  portHolderIsSandbox, buildDevEnv, checkGuard, DEV_URL, forwardSignals, missingCopyMessage,
 } from './sandbox-lib.js';
 
 describe('env file', () => {
@@ -44,8 +44,18 @@ describe('buildFetch', () => {
   });
   it('cold: stops the container, tars the data dir, always starts it again', () => {
     const f = buildFetch('cold', env);
-    expect(f.remote).toBe('docker stop actual >/dev/null && sudo tar -czf - -C /opt/x/actual data ; docker start actual >/dev/null');
+    expect(f.remote).toBe('docker stop actual >/dev/null && sudo tar -czf - -C /opt/x/actual data ; s=$?; docker start actual >/dev/null; exit $s');
     expect(f.stripComponents).toBe(1);
+  });
+});
+
+describe('missingCopyMessage', () => {
+  it('points at the right setting for each mode', () => {
+    expect(missingCopyMessage('backup')).toMatch(/DEV_SOURCE_TAR_MEMBER_PREFIX/);
+    const cold = missingCopyMessage('cold');
+    expect(cold).toMatch(/DEV_SOURCE_DATA_DIR/);
+    expect(cold).toMatch(/DEV_SOURCE_CONTAINER/);
+    expect(cold).toMatch(/sudo/);
   });
 });
 
@@ -101,7 +111,7 @@ describe('dev/.env.example', () => {
 
 describe('.gitignore', () => {
   it('keeps the copy, the cache and dev/.env out of git', () => {
-    for (const p of ['dev/data/server-files/account.sqlite', 'dev/.cache/x', 'dev/.cache-instance-123/x', 'dev/.env']) {
+    for (const p of ['dev/data/server-files/account.sqlite', 'dev/.cache/x', 'dev/data.new/server-files/account.sqlite', 'dev/.cache-instance-123/x', 'dev/.env']) {
       expect(() => execFileSync('git', ['check-ignore', '-q', p])).not.toThrow();
     }
     expect(() => execFileSync('git', ['check-ignore', '-q', 'dev/.env.example'])).toThrow();
