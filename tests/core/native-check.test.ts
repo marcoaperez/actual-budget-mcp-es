@@ -35,15 +35,17 @@ describe('parseAbiMismatch', () => {
 });
 
 describe('nativeAddonPath', () => {
-  it('resuelve el binario dentro de node_modules/better-sqlite3/build/Release, relativo a la raíz del paquete', () => {
+  it('resuelve el binario N-API en node_modules/better-sqlite3/prebuilds/<plataforma>-<arquitectura>.node, relativo a la raíz del paquete', () => {
     const raiz = '/pkg/root';
-    expect(nativeAddonPath(raiz)).toBe(
-      path.join('/pkg/root', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
+    expect(nativeAddonPath(raiz, 'darwin', 'arm64')).toBe(
+      path.join('/pkg/root', 'node_modules', 'better-sqlite3', 'prebuilds', 'darwin-arm64.node'),
     );
   });
 
-  it('sin argumento, resuelve contra la raíz real del paquete (dos niveles por encima de src/core)', () => {
-    expect(nativeAddonPath()).toMatch(/node_modules[/\\]better-sqlite3[/\\]build[/\\]Release[/\\]better_sqlite3\.node$/);
+  it('sin argumentos, resuelve contra la raíz real del paquete y la plataforma actual', () => {
+    expect(nativeAddonPath()).toMatch(
+      new RegExp(`node_modules[/\\\\]better-sqlite3[/\\\\]prebuilds[/\\\\]${process.platform}-${process.arch}\\.node$`),
+    );
   });
 });
 

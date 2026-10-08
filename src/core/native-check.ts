@@ -44,9 +44,16 @@ export function parseAbiMismatch(mensaje: string): AbiMismatch | null {
   return { compiladoPara: Number(coincidencia[1]), runtime: Number(coincidencia[2]) };
 }
 
-/** Ruta del binario nativo de better-sqlite3, relativa a la raíz del paquete. */
-export function nativeAddonPath(pkgRoot: string = PKG_ROOT): string {
-  return path.join(pkgRoot, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
+/**
+ * Ruta del binario nativo de better-sqlite3 (>=13, N-API), relativa a la raíz del paquete.
+ * Desde la 13 viaja precompilado en prebuilds/<plataforma>-<arquitectura>.node.
+ */
+export function nativeAddonPath(
+  pkgRoot: string = PKG_ROOT,
+  platform: string = process.platform,
+  arch: string = process.arch,
+): string {
+  return path.join(pkgRoot, 'node_modules', 'better-sqlite3', 'prebuilds', `${platform}-${arch}.node`);
 }
 
 export type NativeCheckResult = { ok: true } | ({ ok: false } & AbiMismatch);
