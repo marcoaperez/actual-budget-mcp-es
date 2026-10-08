@@ -92,6 +92,9 @@ export function fakeLedger(setup: {
       return [];
     },
     deleteTransaction: async (id: string) => {
+      // Como removeTransfer de Actual: borrar una fila con transfer_id borra también la fila a la que apunta.
+      const row = db.get(id);
+      if (row?.transfer_id) db.delete(row.transfer_id);
       db.delete(id);
     },
     mergeTransactions: async ([first, second]: [string, string]) => {

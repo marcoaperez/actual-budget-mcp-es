@@ -96,10 +96,11 @@ async function applyLink(api: any, op: Extract<Operation, { type: 'link' }>, m: 
       await api.updateTransaction(x.id, { payee: originalPayee, category: originalCategory });
       if (await pollClean()) return { operation: op, status: 'fallida', detail };
       // X′ puede quedar suelta (la fusión rompió los enlaces y falló): se borra solo si es seguro.
+      // Si aún tiene transfer_id (aunque apunte a X), Actual al borrarla borraría la fila a la que apunta.
       const orphan = counterpartId ? await getTransactionById(api, counterpartId) : null;
       if (
         orphan && !orphan.imported_id && !orphan.reconciled &&
-        (orphan.transfer_id === null || orphan.transfer_id === undefined || orphan.transfer_id === x.id)
+        (orphan.transfer_id === null || orphan.transfer_id === undefined)
       ) {
         await api.deleteTransaction(counterpartId);
         if (await pollClean()) return { operation: op, status: 'fallida', detail };

@@ -118,6 +118,24 @@ describe('link', () => {
     expect(r.detail).toMatch(/cp-1/);
   });
 
+  it('no borra la contrapartida suelta si aún apunta a X (Actual borraría el original)', async () => {
+    const { api, db } = fakeLedger({ accounts, rows: [x, y], behaviour: { mergeDropsLinksThenFails: true } });
+    const realMerge = (api.mergeTransactions as any).getMockImplementation();
+    (api.mergeTransactions as any).mockImplementationOnce(async (ids: any) => {
+      try {
+        await realMerge(ids);
+      } finally {
+        db.get('cp-1').transfer_id = 'x';
+      }
+    });
+    const r = await applyOperation(api, { type: 'link', a: 'x', b: 'y' }, m, { ...noSleep, attempts: 3 });
+    expect(r.status).toBe('fallida');
+    expect(api.deleteTransaction).not.toHaveBeenCalled();
+    expect(db.has('x')).toBe(true);
+    expect(db.has('cp-1')).toBe(true);
+    expect(r.detail).toMatch(/cp-1/);
+  });
+
   it('no borra la contrapartida suelta si ya está conciliada', async () => {
     const { api, db } = fakeLedger({ accounts, rows: [x, y], behaviour: { mergeDropsLinksThenFails: true } });
     const realMerge = (api.mergeTransactions as any).getMockImplementation();
