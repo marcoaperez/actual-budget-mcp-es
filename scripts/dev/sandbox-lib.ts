@@ -1,6 +1,9 @@
 // sandbox-lib.ts — lógica pura del sandbox de desarrollo (spec 2026-10-08-dev-sandbox-design).
 // refresh.ts y mcp-dev.ts solo orquestan; todo lo que decide algo vive aquí y tiene tests.
 
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 export const DEV_URL = 'http://localhost:5007';
 export const DEV_PORT = 5007;
 export const DEV_PASSWORD = 'actual-dev';
@@ -60,4 +63,37 @@ export function portHolderIsSandbox(lsofOutput: string, sandboxContainerIds: str
   const holders = lsofOutput.split('\n').slice(1).filter((l) => l.trim());
   if (holders.length === 0) return true;
   return sandboxContainerIds.length > 0 && holders.every((l) => /^com\.docke|^docker|^vpnkit/.test(l));
+}
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Entorno del MCP de desarrollo: TODO lo de Actual se fuerza al sandbox. src/index.ts carga
+ *  dotenv, pero dotenv nunca pisa variables ya definidas, así que el .env real de la raíz no cuela. */
+export function buildDevEnv(devEnvFile: Record<string, string>, processEnv: Record<string, string | undefined>): Record<string, string> {
+  const base = Object.fromEntries(Object.entries(processEnv).filter((e): e is [string, string] => typeof e[1] === 'string'));
+  return {
+    ...base,
+    ACTUAL_SERVER_URL: DEV_URL,
+    ACTUAL_SERVER_PASSWORD: DEV_PASSWORD,
+    ACTUAL_SYNC_ID: devEnvFile.ACTUAL_SYNC_ID ?? '',
+    ACTUAL_DATA_DIR: path.join(REPO_ROOT, 'dev', '.cache'),
+    ENABLE_WRITE: 'true',
+    LOCALE: 'es-ES',
+    CURRENCY: 'EUR',
+    MESSAGES_LANG: 'es',
+  };
+}
+
+export async function checkGuard(env: Record<string, string>, fetchInfo: (url: string) => Promise<boolean>): Promise<string | null> {
+  if (env.ACTUAL_SERVER_URL !== DEV_URL) {
+    return `actual-dev solo puede usar ${DEV_URL} (recibido: ${env.ACTUAL_SERVER_URL}). No arranca.`;
+  }
+  if (!UUID.test(env.ACTUAL_SYNC_ID ?? '')) {
+    return 'Falta el Sync ID del sandbox en dev/.env: ejecuta npm run dev:refresh.';
+  }
+  if (!(await fetchInfo(`${DEV_URL}/info`))) {
+    return `El sandbox no responde en ${DEV_URL}: arráncalo con npm run dev:refresh.`;
+  }
+  return null;
 }

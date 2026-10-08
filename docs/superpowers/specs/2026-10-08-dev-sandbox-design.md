@@ -83,17 +83,19 @@ only orchestrates.
 Registers one MCP server for Claude Code in this repo:
 
 ```json
-{ "mcpServers": { "actual-dev": { "command": "dev/mcp-dev.sh" } } }
+{ "mcpServers": { "actual-dev": { "command": "npx", "args": ["tsx", "scripts/dev/mcp-dev.ts"] } } }
 ```
 
-### 5. `dev/mcp-dev.sh` — the guard
+### 5. `scripts/dev/mcp-dev.ts` — the guard
+
+Written in TypeScript instead of shell so the guard logic (`buildDevEnv`, `checkGuard`) is unit-tested; `.mcp.json` runs `npx tsx scripts/dev/mcp-dev.ts`.
 
 Starts the MCP from source (`npx tsx src/index.ts`) with:
 `ACTUAL_SERVER_URL=http://localhost:5007`, `ACTUAL_SERVER_PASSWORD=actual-dev`,
 `ACTUAL_SYNC_ID` from `dev/.env`, `ACTUAL_DATA_DIR=dev/.cache`, `ENABLE_WRITE=true`,
 `MESSAGES_LANG=es`.
 
-Before exec it checks, and exits non-zero with a message on stderr if any fails:
+Before launching it checks, and exits non-zero with a message on stderr if any fails:
 - the effective URL is exactly `http://localhost:5007` (even if the environment tried to override it);
 - `GET http://localhost:5007/info` answers;
 - `ACTUAL_SYNC_ID` is set and is a UUID.

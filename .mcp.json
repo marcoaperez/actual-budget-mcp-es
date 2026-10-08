@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "actual-dev": {
+      "command": "npx",
+      "args": ["tsx", "scripts/dev/mcp-dev.ts"]
+    }
+  }
+}

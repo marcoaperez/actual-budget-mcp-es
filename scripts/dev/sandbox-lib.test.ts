@@ -5,7 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   NEUTRALISE_SQL, SOURCE_KEYS_BACKUP, parseEnvFile, setEnvValue, missingKeys, buildFetch, findBudget,
-  portHolderIsSandbox,
+  portHolderIsSandbox, buildDevEnv, checkGuard, DEV_URL,
 } from './sandbox-lib.js';
 
 describe('env file', () => {
@@ -104,5 +104,43 @@ describe('.gitignore', () => {
       expect(() => execFileSync('git', ['check-ignore', '-q', p])).not.toThrow();
     }
     expect(() => execFileSync('git', ['check-ignore', '-q', 'dev/.env.example'])).toThrow();
+  });
+});
+
+describe('buildDevEnv', () => {
+  const hostile = {
+    PATH: '/usr/bin', HOME: '/Users/x',
+    ACTUAL_SERVER_URL: 'https://produccion.example', ACTUAL_SERVER_PASSWORD: 'real', ACTUAL_SYNC_ID: 'real-id',
+    ACTUAL_DATA_DIR: '/real/cache', ENABLE_WRITE: 'false',
+  };
+  it('forces every Actual variable to the sandbox, whatever the parent environment says', () => {
+    const env = buildDevEnv({ ACTUAL_SYNC_ID: '11111111-1111-4111-8111-111111111111' }, hostile);
+    expect(env).toMatchObject({
+      ACTUAL_SERVER_URL: 'http://localhost:5007', ACTUAL_SERVER_PASSWORD: 'actual-dev',
+      ACTUAL_SYNC_ID: '11111111-1111-4111-8111-111111111111', ENABLE_WRITE: 'true',
+      LOCALE: 'es-ES', CURRENCY: 'EUR', MESSAGES_LANG: 'es',
+    });
+    expect(env.ACTUAL_DATA_DIR).toMatch(/dev\/\.cache$/);
+    expect(env.PATH).toBe('/usr/bin');
+  });
+});
+
+describe('checkGuard', () => {
+  const ok = { ACTUAL_SERVER_URL: DEV_URL, ACTUAL_SYNC_ID: '11111111-1111-4111-8111-111111111111' };
+  const up = async () => true;
+  it('accepts the sandbox URL with a valid Sync ID and a live server', async () => {
+    expect(await checkGuard(ok, up)).toBeNull();
+  });
+  it.each(['http://localhost:5006', 'http://127.0.0.1:5007', 'https://localhost:5007', 'https://produccion.example', 'http://localhost:5007/'])(
+    'rejects %s', async (url) => {
+      expect(await checkGuard({ ...ok, ACTUAL_SERVER_URL: url }, up)).toMatch(/5007/);
+    },
+  );
+  it('rejects a missing or non-UUID Sync ID', async () => {
+    expect(await checkGuard({ ...ok, ACTUAL_SYNC_ID: '' }, up)).toMatch(/dev:refresh/);
+    expect(await checkGuard({ ...ok, ACTUAL_SYNC_ID: 'nope' }, up)).toMatch(/dev:refresh/);
+  });
+  it('rejects when the sandbox is not running', async () => {
+    expect(await checkGuard(ok, async () => false)).toMatch(/npm run dev:refresh/);
   });
 });
