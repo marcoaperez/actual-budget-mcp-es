@@ -32,6 +32,8 @@ export const tool: ToolDef = {
   handler: async (raw, { api, config }) => {
     const a = schema.parse(raw ?? {});
     const m = msg(config);
+    // Revalidar contra datos frescos: ensureReady solo sincroniza si su TTL ha caducado.
+    await api.sync();
     const results: OpResult[] = [];
     for (const op of a.operations) results.push(await applyOperation(api, op, m));
     const sync = await syncAfterWrite(api);

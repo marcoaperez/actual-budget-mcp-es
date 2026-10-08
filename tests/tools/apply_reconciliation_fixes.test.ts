@@ -17,7 +17,7 @@ const rows = [
 ];
 
 describe('apply_reconciliation_fixes', () => {
-  it('aplica cada operación, informa de cada una y sincroniza una vez', async () => {
+  it('aplica cada operación, informa de cada una y sincroniza antes de revalidar y después de escribir', async () => {
     const { api, db } = fakeLedger({ accounts, rows });
     const r: any = await tool.handler({ operations: [
       { type: 'link', a: X, b: Y },
@@ -27,7 +27,7 @@ describe('apply_reconciliation_fixes', () => {
     expect(r).toMatchObject({ applied: 2, skipped: 0, failed: 0 });
     expect(db.get(X).transfer_id).toBe(Y);
     expect(db.has(MAN)).toBe(false);
-    expect(api.sync).toHaveBeenCalledTimes(1);
+    expect(api.sync).toHaveBeenCalledTimes(2);
   });
 
   it('una operación omitida no detiene las demás', async () => {
@@ -42,7 +42,7 @@ describe('apply_reconciliation_fixes', () => {
 
   it('avisa si la sincronización final falla, sin dar la escritura por perdida', async () => {
     const { api } = fakeLedger({ accounts, rows });
-    api.sync.mockRejectedValueOnce(new Error('offline'));
+    api.sync.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('offline'));
     const r: any = await tool.handler({ operations: [{ type: 'merge', keep: IMP, drop: MAN }] }, { api, config: testConfig });
     expect(r.applied).toBe(1);
     expect(r.sync_pending).toBe(true);
@@ -55,6 +55,14 @@ describe('apply_reconciliation_fixes', () => {
     const many = Array.from({ length: 51 }, () => ({ type: 'merge', keep: IMP, drop: MAN }));
     await expect(tool.handler({ operations: many }, { api, config: testConfig })).rejects.toBeInstanceOf(ZodError);
     await expect(tool.handler({ operations: [{ type: 'link', a: 'x', b: Y }] }, { api, config: testConfig })).rejects.toBeInstanceOf(ZodError);
+  });
+
+  it('si la sincronización inicial falla, rechaza y no escribe nada', async () => {
+    const { api } = fakeLedger({ accounts, rows });
+    api.sync.mockRejectedValueOnce(new Error('offline'));
+    await expect(tool.handler({ operations: [{ type: 'merge', keep: IMP, drop: MAN }] }, { api, config: testConfig })).rejects.toThrow(/offline/);
+    expect(api.updateTransaction).not.toHaveBeenCalled();
+    expect(api.mergeTransactions).not.toHaveBeenCalled();
   });
 
   it('es una tool de escritura', () => {
