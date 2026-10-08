@@ -115,6 +115,7 @@
     { "name": "set_transaction_transfer", "description": "Turn a transaction into a transfer with another account" },
     { "name": "get_rules", "description": "List Actual automation rules" },
     { "name": "find_transfer_issues", "description": "Find unlinked transfers, duplicates and missing transfer legs, with proposed fixes" },
+    { "name": "reconcile_account", "description": "Compare an account with the bank balance at a date and explain the difference" },
     { "name": "delete_rule", "description": "Delete an automation rule" },
     { "name": "create_rule", "description": "Create an automation rule" },
     { "name": "update_rule", "description": "Replace an automation rule (full object)" }
