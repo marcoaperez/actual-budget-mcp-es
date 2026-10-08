@@ -26,9 +26,15 @@ describe('reconciliation tools end to end', () => {
     const line = stdout.split('\n').find((l) => l.startsWith('RESULT='));
     expect(line, stdout).toBeTruthy();
     const result = JSON.parse(line!.slice('RESULT='.length));
-    expect(result.statuses.every((s: string) => s === 'aplicada')).toBe(true);
-    expect(result.balances).toEqual({ A: -15000, B: 12500, C: 5000 });
+    expect([...result.proposals].sort()).toEqual(['create_transfer:dudosa', 'link:alta', 'merge:alta', 'merge:alta']);
+    expect(result.statuses).toEqual(['aplicada', 'aplicada', 'aplicada', 'aplicada']);
+    expect(result.balances).toEqual({ A: -15000, B: 8500, C: 5000, D: 4000 });
     expect(result.reconcileMatches).toBe(true);
-    expect(result.imported).toEqual(['rc-a1', 'rc-a2', 'rc-b1', 'rc-b2']);
+    expect(result.marked).toBe(3);
+    expect(result.markedAll).toBe(true);
+    expect(result.imported).toEqual(['rc-a1', 'rc-a2', 'rc-b1', 'rc-b2', 'rc-b3']);
+    expect(result.linkedImported).toEqual(['rc-a1', 'rc-a2', 'rc-b1', 'rc-b3']);
+    expect(result.mutualLinks).toBe(true);
+    expect(result.b3LinkedToAhorro).toBe(true);
   });
 });
