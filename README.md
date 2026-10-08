@@ -182,7 +182,7 @@ Registered only when `ENABLE_WRITE=true`.
 
 | Tool | Description |
 |---|---|
-| `set_transaction_transfer` | Turn an ordinary transaction into a transfer with another account, by pointing it at that account's transfer payee. Actual creates and links the matching transaction on the other account |
+| `set_transaction_transfer` | Turn an ordinary transaction into a transfer with another account, by pointing it at that account's transfer payee. Actual creates and links the matching transaction on the other account. If the target account syncs with the bank, the result carries a warning (the bank will import its own leg; to join two existing transactions use `find_transfer_issues`) |
 | `apply_reconciliation_fixes` | Apply the reconciliation operations you accepted (link, merge, create transfer), up to 50 per call; each is revalidated first and reported as applied, skipped (with the reason) or failed. Never touches reconciled transactions and keeps every bank import id |
 | `mark_reconciled` | When an account matches the bank at a date, mark its unreconciled transactions up to that date as cleared and reconciled (like Actual's reconcile button). Refuses and writes nothing if the balance does not match; never adds an adjustment transaction |
 

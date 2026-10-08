@@ -14,7 +14,7 @@ const schema = z.object(input);
 export const tool: ToolDef = {
   name: 'set_transaction_transfer',
   title: 'Turn transaction into transfer',
-  description: 'Turn an ordinary transaction into a transfer with another account, by pointing it at that account transfer payee. Actual creates and links the matching transaction on the other account, and clears the category on both when the two accounts are on the same side of the budget (both on-budget or both off-budget). If the transaction is already a transfer, it is re-pointed to the new destination. Returns the transaction and the id of the linked counterpart.',
+  description: 'Turn an ordinary transaction into a transfer with another account, by pointing it at that account transfer payee. Actual creates and links the matching transaction on the other account, and clears the category on both when the two accounts are on the same side of the budget (both on-budget or both off-budget). If the transaction is already a transfer, it is re-pointed to the new destination. Returns the transaction and the id of the linked counterpart. If the target account syncs with the bank, the result carries a warning: the bank will import its own leg, so joining two existing transactions is better done with find_transfer_issues (link).',
   readOnly: false,
   annotations: { destructiveHint: true, idempotentHint: true },
   inputSchema: input,
@@ -22,10 +22,11 @@ export const tool: ToolDef = {
     const a = schema.parse(raw ?? {});
     const m = msg(config);
 
-    const accounts = (await api.getAccounts()) ?? [];
-    if (!(accounts as any[]).some((acc) => acc.id === a.target_account_id)) {
-      throw new Error(m.accountNotFound(a.target_account_id));
-    }
+    const accounts = ((await api.getAccounts()) ?? []) as any[];
+    const target = accounts.find((acc) => acc.id === a.target_account_id);
+    if (!target) throw new Error(m.accountNotFound(a.target_account_id));
+    // balance_current solo lo rellena el bank-sync: el banco traerá su propia pata.
+    const syncedTarget = target.balance_current !== null && target.balance_current !== undefined;
 
     const existing = await getTransactionById(api, a.transaction_id);
     if (!existing) throw new Error(m.txNotFound(a.transaction_id));
@@ -48,6 +49,7 @@ export const tool: ToolDef = {
     const sync = await syncAfterWrite(api);
     return {
       updated: true,
+      ...(syncedTarget ? { warning: m.transferTargetSynced(target.name) } : {}),
       ...(settled ? {} : { echo_pending: true, note: m.echoPending }),
       ...(sync.synced ? {} : { sync_pending: true, note: m.syncPending(sync.error!) }),
       target_account_id: a.target_account_id,

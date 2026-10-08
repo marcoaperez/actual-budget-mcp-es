@@ -104,6 +104,9 @@ const es = {
     'categoría (de OTRO grupo) a la que reasignarlas; si se borra sin destino, esas transacciones quedan sin categoría',
   cannotReassignToSelf: 'transfer_category_id no puede ser una de las categorías que se están borrando',
   transferSameAccount: 'La cuenta de destino debe ser distinta de la cuenta de la transacción',
+  transferTargetSynced: (name: string) =>
+    `"${name}" se sincroniza con el banco: cuando el banco importe este movimiento quedará duplicado. ` +
+    'Para unir dos movimientos que ya existen usa find_transfer_issues y la operación link',
   cannotTransferSplitParent: (id: string) =>
     `La transacción ${id} es el padre de un split y Actual no puede convertirla en transferencia: convierte sus ` +
     'partes por separado o deshaz el split primero',
@@ -242,6 +245,9 @@ const en: Messages = {
     '(from ANOTHER group) to reassign them to; deleting without a destination leaves those transactions uncategorized',
   cannotReassignToSelf: 'transfer_category_id cannot be one of the categories being deleted',
   transferSameAccount: 'The destination account must be different from the account of the transaction',
+  transferTargetSynced: (name: string) =>
+    `"${name}" syncs with the bank: once the bank imports this transaction it will be duplicated. ` +
+    'To join two transactions that already exist use find_transfer_issues and the link operation',
   cannotTransferSplitParent: (id: string) =>
     `Transaction ${id} is the parent of a split and Actual cannot turn it into a transfer: convert its parts ` +
     'individually or undo the split first',

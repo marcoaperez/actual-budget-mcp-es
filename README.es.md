@@ -179,7 +179,7 @@ Con `ENABLE_WRITE=true` el servidor expone además estas 20 herramientas de escr
 
 | Herramienta | Descripción |
 |---|---|
-| `set_transaction_transfer` | Convertir un movimiento normal en una transferencia con otra cuenta, apuntándolo al beneficiario de transferencia de esa cuenta. Actual crea y enlaza el movimiento correspondiente en la otra cuenta |
+| `set_transaction_transfer` | Convertir un movimiento normal en una transferencia con otra cuenta, apuntándolo al beneficiario de transferencia de esa cuenta. Actual crea y enlaza el movimiento correspondiente en la otra cuenta. Si la cuenta destino se sincroniza con el banco, el resultado incluye un aviso (el banco importará su propia pata; para unir dos movimientos que ya existen usa `find_transfer_issues`) |
 | `apply_reconciliation_fixes` | Aplica las operaciones de conciliación que aceptes (enlazar, fusionar, crear transferencia), hasta 50 por llamada; cada una se revalida antes y se informa como aplicada, omitida (con el motivo) o fallida. Nunca toca movimientos conciliados y conserva el identificador de importación del banco |
 | `mark_reconciled` | Cuando una cuenta cuadra con el banco a una fecha, marca sus movimientos sin conciliar hasta esa fecha como liquidados y conciliados (como el botón de conciliar de Actual). Si el saldo no cuadra, se niega y no escribe nada; nunca crea un apunte de ajuste |
 

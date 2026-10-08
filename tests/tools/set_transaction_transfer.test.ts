@@ -89,4 +89,17 @@ describe('set_transaction_transfer', () => {
     await tool.handler({ transaction_id: T1, target_account_id: A_DST }, { api, config: testConfig });
     expect(api.sync).toHaveBeenCalledTimes(1);
   });
+
+  it('avisa de duplicado probable si la cuenta destino se sincroniza con el banco', async () => {
+    const syncedAccounts = accounts.map((a) => (a.id === A_DST ? { ...a, balance_current: 1000 } : a));
+    const api = apiWithRows([[plain], [linked]], { getAccounts: async () => syncedAccounts });
+    const r: any = await tool.handler({ transaction_id: T1, target_account_id: A_DST }, { api, config: testConfig });
+    expect(r.warning).toMatch(/find_transfer_issues/);
+  });
+
+  it('no avisa si la cuenta destino se lleva a mano', async () => {
+    const api = apiWithRows([[plain], [linked]]);
+    const r: any = await tool.handler({ transaction_id: T1, target_account_id: A_DST }, { api, config: testConfig });
+    expect(r.warning).toBeUndefined();
+  });
 });
