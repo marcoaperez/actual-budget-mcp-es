@@ -51,22 +51,10 @@ Descarga el `.mcpb` más reciente y vuelve a arrastrarlo — tu configuración s
 
 ### Si todas las tools fallan tras actualizar Claude Desktop
 
-El bundle lleva un módulo nativo de SQLite (`better-sqlite3`) compilado para un ABI de Node
-concreto. Claude Desktop no ejecuta las extensiones con el Node del sistema: las arranca
-dentro de su propio Electron, así que el módulo tiene que corresponder a *ese* runtime.
-Cuando una actualización de Claude Desktop lo cambia, el módulo deja de cargar y la
-extensión no puede funcionar.
-
-El servidor lo detecta al arrancar y lo dice sin rodeos: todas las tools responden con los
-dos números de versión implicados y te indican que instales un bundle nuevo, en vez de
-fallar con un mensaje confuso sobre que el presupuesto está cerrado.
-
-No hay nada que puedas hacer desde tu lado: hay que reempaquetar el bundle para el nuevo
-runtime. Descarga una versión más reciente, o constrúyela tú con `npm run bundle` en un
-equipo que tenga instalado el Claude Desktop actualizado.
-
-Solo afecta al bundle `.mcpb`. La [instalación manual](#instalación-manual) corre bajo tu
-propio Node y es inmune.
+Desde la versión 2.3.0 el módulo SQLite que viaja en el bundle está hecho sobre Node-API, así
+que sigue cargando cuando Claude Desktop actualiza su Electron interno. Los bundles anteriores
+(2.2.x y previos) estaban atados a un runtime concreto y dejaban de funcionar tras una de esas
+actualizaciones: si usas uno y fallan todas las herramientas, instala la 2.3.0 o posterior.
 
 ## Instalación manual
 

@@ -85,10 +85,11 @@ under both, so the script would reject a good bundle.
 - **Step 6 (new):** verify the shipped `better_sqlite3.node`:
   1. **Static check (mandatory):** it exports `napi_register_module_v1` (`nm -gU`). If not, it
      is not an N-API build — abort.
-  2. **Runtime check (when available):** load it with Claude Desktop's own Electron in Node mode
-     (`ELECTRON_RUN_AS_NODE=1 <Claude.app>/Contents/MacOS/Claude -e "require(<path>)"`) and run
-     a trivial in-memory query. If the `RunAsNode` fuse is disabled in Claude Desktop the check
-     is skipped with a logged notice; the static check still gates the build.
+  2. **Runtime check: manual, not in the script.** Running Claude Desktop's binary with
+     `ELECTRON_RUN_AS_NODE=1` was dropped during planning: if Claude Desktop ships with the
+     `RunAsNode` fuse disabled, that command starts a second GUI instance of Claude Desktop
+     instead of a Node process. The real runtime check is the maintainer installing the
+     bundle and calling `get_accounts` (0.4).
 - Electron version detection (`parseElectronVersion`, `resolveElectronTarget`) stays, only to
   log the target and to locate the runtime check. `parsePrebuildAbi` and `describeAbiCheck` and
   their tests are removed.
