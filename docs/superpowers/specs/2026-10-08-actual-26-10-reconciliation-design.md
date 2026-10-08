@@ -188,7 +188,8 @@ manually maintained account (no bank sync).
 
 **`merge`** — two transactions in the same account with the same amount, dates at most 2 days
 apart, exactly one of them imported (`imported_id` set).
-- `alta`: same date. `dudosa`: 1–2 days apart.
+- `alta`: same date and the pair is each row's only merge candidate. `dudosa`: 1–2 days apart, or
+  more than one candidate. *(Uniqueness added while planning, 2026-10-08, mirroring `link`.)*
 - This covers the transfer leg created by hand or by `set_transaction_transfer` that the bank
   later imported again. When the non-imported row is a transfer leg, the merge must keep the
   link (see *Applying `merge` on a transfer leg*).
@@ -210,7 +211,9 @@ Output:
 - `reconciled_balance`: sum of transactions already reconciled.
 - `proposals`: the detection rules above restricted to this account and to transactions dated on
   or before `date`, plus any single unreconciled transaction in the account whose amount equals
-  `difference` exactly (reported as a hint, no operation attached).
+  `−difference` exactly — i.e. removing it would close the gap (reported as a hint, no operation
+  attached). *Clarified while planning (2026-10-08): with `difference = bank − actual`, an extra
+  transaction in Actual of amount `−difference` is what explains the gap.*
 - When `difference` is 0: says the account matches and suggests `mark_reconciled`.
 
 #### `find_transfer_issues`
