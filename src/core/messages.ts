@@ -122,6 +122,22 @@ const es = {
   reasonCreateFromName: (account: string) => `El beneficiario o las notas mencionan la cuenta "${account}"`,
   reconcileMatchesNext: 'El saldo cuadra. Si quieres fijarlo, usa mark_reconciled con la misma fecha y saldo',
   reconcileHintExtra: 'Su importe es exactamente la diferencia: puede que sobre en Actual (duplicado o mal fechado)',
+  opTxNotFound: (id: string) => `El movimiento ${id} ya no existe`,
+  opSplitRow: (id: string) => `El movimiento ${id} forma parte de un split`,
+  opReconciled: (id: string) => `El movimiento ${id} está conciliado y no se toca`,
+  opAlreadyTransfer: (id: string) => `El movimiento ${id} ya es una transferencia`,
+  opSameAccount: 'Los dos movimientos están en la misma cuenta',
+  opAmountsMismatch: 'Los importes ya no se corresponden',
+  opMergeShape: 'Para fusionar, keep debe ser el movimiento importado del banco y drop el no importado, en la misma cuenta y con el mismo importe',
+  opAccountUnavailable: (id: string) => `La cuenta ${id} no existe, está cerrada o es la del propio movimiento`,
+  opNoTransferPayee: (id: string) => `La cuenta ${id} no tiene beneficiario de transferencia`,
+  linkNoCounterpart: (id: string) => `Actual no creó la contrapartida de ${id}; se ha revertido el cambio`,
+  linkReverted: (cause: string) => `Falló al fusionar (${cause}); se ha revertido el cambio`,
+  linkRevertFailed: (x: string, counterpart: string, cause: string) =>
+    `Falló y no se pudo revertir (${cause}): revisa a mano ${x} y la contrapartida ${counterpart}`,
+  linkUnverified: (x: string, y: string) => `Tras fusionar, ${x} y ${y} no quedaron enlazados: revísalos a mano`,
+  mergeUnverified: (keep: string, drop: string) =>
+    `Tras fusionar ${drop} en ${keep} el resultado no es el esperado: revisa ${keep} a mano`,
 
   // --- Infraestructura del presupuesto ---
   budgetClosed: (cause: string, dataDir: string) =>
@@ -240,6 +256,22 @@ const en: Messages = {
   reasonCreateFromName: (account: string) => `The payee or notes mention the account "${account}"`,
   reconcileMatchesNext: 'The balance matches. To lock it in, call mark_reconciled with the same date and balance',
   reconcileHintExtra: 'Its amount is exactly the difference: it may be extra in Actual (duplicate or wrong date)',
+  opTxNotFound: (id: string) => `Transaction ${id} no longer exists`,
+  opSplitRow: (id: string) => `Transaction ${id} is part of a split`,
+  opReconciled: (id: string) => `Transaction ${id} is reconciled and is left untouched`,
+  opAlreadyTransfer: (id: string) => `Transaction ${id} is already a transfer`,
+  opSameAccount: 'Both transactions are in the same account',
+  opAmountsMismatch: 'The amounts no longer match',
+  opMergeShape: 'To merge, keep must be the bank-imported transaction and drop the non-imported one, in the same account with the same amount',
+  opAccountUnavailable: (id: string) => `Account ${id} does not exist, is closed or is the transaction's own account`,
+  opNoTransferPayee: (id: string) => `Account ${id} has no transfer payee`,
+  linkNoCounterpart: (id: string) => `Actual did not create the counterpart of ${id}; the change was reverted`,
+  linkReverted: (cause: string) => `Merging failed (${cause}); the change was reverted`,
+  linkRevertFailed: (x: string, counterpart: string, cause: string) =>
+    `Failed and could not be reverted (${cause}): check ${x} and the counterpart ${counterpart} by hand`,
+  linkUnverified: (x: string, y: string) => `After merging, ${x} and ${y} are not linked: check them by hand`,
+  mergeUnverified: (keep: string, drop: string) =>
+    `After merging ${drop} into ${keep} the result is not as expected: check ${keep} by hand`,
 
   // --- Infraestructura del presupuesto ---
   budgetClosed: (cause: string, dataDir: string) =>

@@ -1,0 +1,139 @@
+import { describe, it, expect } from 'vitest';
+import { applyOperation } from '../../src/core/reconcile-apply.js';
+import { messagesFor } from '../../src/core/messages.js';
+import { fakeLedger, transferPayeeOf } from '../helpers/fake-ledger.js';
+
+const m = messagesFor('es');
+const noSleep = { sleep: async () => {} };
+const accounts = [{ id: 'A', name: 'BBVA' }, { id: 'B', name: 'ING' }, { id: 'CASH', name: 'Efectivo' }, { id: 'OLD', name: 'Vieja', closed: true }];
+const x = { id: 'x', account: 'A', date: '2026-09-15', amount: -10000, imported_id: 'ix', payee: 'p-orig' };
+const y = { id: 'y', account: 'B', date: '2026-09-16', amount: 10000, imported_id: 'iy' };
+
+describe('link', () => {
+  it('enlaza dos patas importadas conservando ambos imported_id y sin restos', async () => {
+    const { api, db } = fakeLedger({ accounts, rows: [x, y] });
+    const r = await applyOperation(api, { type: 'link', a: 'x', b: 'y' }, m, noSleep);
+    expect(r.status).toBe('aplicada');
+    expect(db.get('x').transfer_id).toBe('y');
+    expect(db.get('y').transfer_id).toBe('x');
+    expect(db.get('x').imported_id).toBe('ix');
+    expect(db.get('y').imported_id).toBe('iy');
+    expect(db.size).toBe(2);
+    expect(r.survivor_id).toBe('y');
+  });
+
+  it('cambia el beneficiario de la pata NO importada para que sobreviva la importada', async () => {
+    const manualX = { ...x, imported_id: null };
+    const { api, db } = fakeLedger({ accounts, rows: [y, manualX] });
+    const r = await applyOperation(api, { type: 'link', a: 'y', b: 'x' }, m, noSleep);
+    expect(r.status).toBe('aplicada');
+    expect(api.updateTransaction).toHaveBeenCalledWith('x', { payee: transferPayeeOf('B') });
+    expect(db.get('y').imported_id).toBe('iy');
+    expect(db.get('y').transfer_id).toBe('x');
+  });
+
+  it('espera a que aparezca la contrapartida (creación asíncrona)', async () => {
+    const { api } = fakeLedger({ accounts, rows: [x, y], behaviour: { counterpartAfterReads: 4 } });
+    const r = await applyOperation(api, { type: 'link', a: 'x', b: 'y' }, m, noSleep);
+    expect(r.status).toBe('aplicada');
+  });
+
+  it('si la contrapartida no aparece, revierte el beneficiario y falla', async () => {
+    const { api, db } = fakeLedger({ accounts, rows: [x, y], behaviour: { noCounterpart: true } });
+    const r = await applyOperation(api, { type: 'link', a: 'x', b: 'y' }, m, { ...noSleep, attempts: 3 });
+    expect(r.status).toBe('fallida');
+    expect(db.get('x').payee).toBe('p-orig');
+    expect(db.get('x').transfer_id).toBeNull();
+  });
+
+  it('si la fusión falla, revierte (borra la contrapartida) y falla', async () => {
+    const { api, db } = fakeLedger({ accounts, rows: [x, y], behaviour: { failMerge: true } });
+    const r = await applyOperation(api, { type: 'link', a: 'x', b: 'y' }, m, noSleep);
+    expect(r.status).toBe('fallida');
+    expect(r.detail).toMatch(/merge boom/);
+    expect(db.size).toBe(2);
+    expect(db.get('x').transfer_id).toBeNull();
+    expect(db.get('x').payee).toBe('p-orig');
+  });
+
+  it('falla sin revertir si tras fusionar el enlace no cuadra, con los ids', async () => {
+    const { api } = fakeLedger({ accounts, rows: [x, y], behaviour: { mergeLosesLink: true } });
+    const r = await applyOperation(api, { type: 'link', a: 'x', b: 'y' }, m, noSleep);
+    expect(r.status).toBe('fallida');
+    expect(r.detail).toMatch(/x/);
+    expect(r.detail).toMatch(/y/);
+  });
+
+  it('omite si algo cambió entre proponer y aplicar', async () => {
+    const cases: [any[], string][] = [
+      [[{ ...x, reconciled: true }, y], 'conciliad'],
+      [[{ ...x, transfer_id: 'zz' }, y], 'transferencia'],
+      [[x, { ...y, amount: 9999 }], 'importe'],
+      [[x, { ...y, account: 'A' }], 'misma cuenta'],
+      [[x], 'y'],
+    ];
+    for (const [rows, why] of cases) {
+      const { api } = fakeLedger({ accounts, rows });
+      const r = await applyOperation(api, { type: 'link', a: 'x', b: 'y' }, m, noSleep);
+      expect(r.status, why).toBe('omitida');
+      expect(r.detail).toMatch(new RegExp(why, 'i'));
+      expect(api.updateTransaction).not.toHaveBeenCalled();
+    }
+  });
+});
+
+describe('merge', () => {
+  const imp = { id: 'imp', account: 'B', date: '2026-09-15', amount: 2500, imported_id: 'ib' };
+  const man = { id: 'man', account: 'B', date: '2026-09-15', amount: 2500 };
+
+  it('conserva el importado y borra el duplicado', async () => {
+    const { api, db } = fakeLedger({ accounts, rows: [imp, man] });
+    const r = await applyOperation(api, { type: 'merge', keep: 'imp', drop: 'man' }, m, noSleep);
+    expect(r.status).toBe('aplicada');
+    expect(db.has('man')).toBe(false);
+    expect(db.get('imp').imported_id).toBe('ib');
+  });
+
+  it('si el duplicado era una pata de transferencia, el enlace pasa al importado', async () => {
+    const other = { id: 'o', account: 'A', date: '2026-09-15', amount: -2500, transfer_id: 'man' };
+    const { api, db } = fakeLedger({ accounts, rows: [imp, { ...man, transfer_id: 'o' }, other] });
+    const r = await applyOperation(api, { type: 'merge', keep: 'imp', drop: 'man' }, m, noSleep);
+    expect(r.status).toBe('aplicada');
+    expect(db.get('imp').transfer_id).toBe('o');
+    expect(db.get('o').transfer_id).toBe('imp');
+  });
+
+  it('omite si keep no es el importado o drop sí lo es', async () => {
+    const { api } = fakeLedger({ accounts, rows: [imp, man] });
+    expect((await applyOperation(api, { type: 'merge', keep: 'man', drop: 'imp' }, m, noSleep)).status).toBe('omitida');
+    const both = fakeLedger({ accounts, rows: [imp, { ...man, imported_id: 'other' }] });
+    expect((await applyOperation(both.api, { type: 'merge', keep: 'imp', drop: 'man' }, m, noSleep)).status).toBe('omitida');
+  });
+
+  it('falla con los ids si el enlace de la transferencia no pasó al superviviente', async () => {
+    const other = { id: 'o', account: 'A', date: '2026-09-15', amount: -2500, transfer_id: 'man' };
+    const { api } = fakeLedger({ accounts, rows: [imp, { ...man, transfer_id: 'o' }, other], behaviour: { mergeLosesLink: true } });
+    const r = await applyOperation(api, { type: 'merge', keep: 'imp', drop: 'man' }, m, noSleep);
+    expect(r.status).toBe('fallida');
+    expect(r.detail).toMatch(/imp/);
+  });
+});
+
+describe('create_transfer', () => {
+  const bank = { id: 'w', account: 'A', date: '2026-09-15', amount: -5000, imported_id: 'iw' };
+
+  it('apunta el movimiento al beneficiario de transferencia y devuelve la contrapartida', async () => {
+    const { api, db } = fakeLedger({ accounts, rows: [bank] });
+    const r = await applyOperation(api, { type: 'create_transfer', transaction: 'w', account: 'CASH' }, m, noSleep);
+    expect(r.status).toBe('aplicada');
+    expect(r.transfer_id).toBe(db.get('w').transfer_id);
+    expect(db.get(r.transfer_id!).account).toBe('CASH');
+  });
+
+  it('omite si la cuenta destino está cerrada, no existe o es la misma', async () => {
+    for (const account of ['OLD', 'NOPE', 'A']) {
+      const { api } = fakeLedger({ accounts, rows: [bank] });
+      expect((await applyOperation(api, { type: 'create_transfer', transaction: 'w', account }, m, noSleep)).status).toBe('omitida');
+    }
+  });
+});
