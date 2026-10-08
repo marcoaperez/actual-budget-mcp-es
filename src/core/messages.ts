@@ -128,8 +128,12 @@ const es = {
     `No cuadra (diferencia banco − Actual: ${difference}); no se ha marcado nada. Usa reconcile_account para ver la causa`,
   reconcilePartial: (done: number, total: number) =>
     `Se marcaron ${done} de ${total} movimientos antes del fallo. Es seguro volver a ejecutar mark_reconciled con los mismos valores: solo toca los no conciliados`,
+  reconcilePending: (settled: number, total: number) =>
+    `Actual aún no refleja la conciliación de ${total - settled} de ${total} movimientos (se confirmaron ${settled}). Es seguro volver a ejecutar mark_reconciled con los mismos valores: solo toca los no conciliados`,
   reconcileHintExtra: 'Su importe es exactamente la diferencia: puede que sobre en Actual (duplicado o mal fechado)',
   opTxNotFound: (id: string) => `El movimiento ${id} ya no existe`,
+  opCounterpartReconciled: (id: string) =>
+    `La contrapartida ${id} está conciliada y fusionar la reenlazaría: no se toca`,
   opSplitRow: (id: string) => `El movimiento ${id} forma parte de un split`,
   opReconciled: (id: string) => `El movimiento ${id} está conciliado y no se toca`,
   opAlreadyTransfer: (id: string) => `El movimiento ${id} ya es una transferencia`,
@@ -142,6 +146,8 @@ const es = {
   linkReverted: (cause: string) => `Falló al fusionar (${cause}); se ha revertido el cambio`,
   linkRevertFailed: (x: string, counterpart: string, cause: string) =>
     `Falló y no se pudo revertir (${cause}): revisa a mano ${x} y la contrapartida ${counterpart}`,
+  linkRevertUnsafe: (other: string) =>
+    `el movimiento ya apunta a ${other}, que no es la contrapartida creada; revertir lo borraría`,
   linkUnverified: (x: string, y: string) => `Tras fusionar, ${x} y ${y} no quedaron enlazados: revísalos a mano`,
   mergeUnverified: (keep: string, drop: string) =>
     `Tras fusionar ${drop} en ${keep} el resultado no es el esperado: revisa ${keep} a mano`,
@@ -269,8 +275,12 @@ const en: Messages = {
     `It does not match (bank − Actual difference: ${difference}); nothing was marked. Use reconcile_account to find the cause`,
   reconcilePartial: (done: number, total: number) =>
     `${done} of ${total} transactions were marked before the failure. It is safe to run mark_reconciled again with the same values: it only touches unreconciled rows`,
+  reconcilePending: (settled: number, total: number) =>
+    `Actual does not yet show ${total - settled} of ${total} transactions as reconciled (${settled} confirmed). It is safe to run mark_reconciled again with the same values: it only touches unreconciled rows`,
   reconcileHintExtra: 'Its amount is exactly the difference: it may be extra in Actual (duplicate or wrong date)',
   opTxNotFound: (id: string) => `Transaction ${id} no longer exists`,
+  opCounterpartReconciled: (id: string) =>
+    `The counterpart ${id} is reconciled and merging would re-link it: left untouched`,
   opSplitRow: (id: string) => `Transaction ${id} is part of a split`,
   opReconciled: (id: string) => `Transaction ${id} is reconciled and is left untouched`,
   opAlreadyTransfer: (id: string) => `Transaction ${id} is already a transfer`,
@@ -283,6 +293,8 @@ const en: Messages = {
   linkReverted: (cause: string) => `Merging failed (${cause}); the change was reverted`,
   linkRevertFailed: (x: string, counterpart: string, cause: string) =>
     `Failed and could not be reverted (${cause}): check ${x} and the counterpart ${counterpart} by hand`,
+  linkRevertUnsafe: (other: string) =>
+    `the transaction now points to ${other}, which is not the counterpart that was created; reverting would delete it`,
   linkUnverified: (x: string, y: string) => `After merging, ${x} and ${y} are not linked: check them by hand`,
   mergeUnverified: (keep: string, drop: string) =>
     `After merging ${drop} into ${keep} the result is not as expected: check ${keep} by hand`,

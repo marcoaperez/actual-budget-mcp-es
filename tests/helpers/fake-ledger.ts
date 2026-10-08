@@ -9,6 +9,7 @@ function matches(row: any, filter: Record<string, any>): boolean {
       if ('$lte' in v && !(row[k] <= v.$lte)) return false;
       if ('$gte' in v && !(row[k] >= v.$gte)) return false;
       if ('$ne' in v && row[k] === v.$ne) return false;
+      if ('$oneof' in v && !v.$oneof.includes(row[k])) return false;
       return true;
     }
     return row[k] === v;
@@ -21,7 +22,7 @@ const localDay = (d: Date) =>
 export function fakeLedger(setup: {
   accounts: any[];
   rows: any[];
-  behaviour?: { counterpartAfterReads?: number; noCounterpart?: boolean; failMerge?: boolean; mergeLosesLink?: boolean; mergeDropsLinksThenFails?: boolean };
+  behaviour?: { counterpartAfterReads?: number; noCounterpart?: boolean; failMerge?: boolean; mergeLosesLink?: boolean; mergeDropsLinksThenFails?: boolean; writesLandAfterReads?: number; neverLandIds?: string[] };
 }) {
   const b = setup.behaviour ?? {};
   const db = new Map<string, any>(
@@ -30,6 +31,9 @@ export function fakeLedger(setup: {
   let created = 0;
   let pendingCounterpart: (() => void) | null = null;
   let readsUntilCounterpart = 0;
+  // Como api/transaction-update de Actual: la promesa resuelve antes de que la escritura aterrice.
+  let pendingWrites: (() => void)[] = [];
+  let readsUntilWrites = 0;
 
   const removeCounterpart = (row: any) => {
     if (row.transfer_id) db.delete(row.transfer_id);
@@ -46,6 +50,11 @@ export function fakeLedger(setup: {
         pendingCounterpart();
         pendingCounterpart = null;
       }
+      if (pendingWrites.length > 0 && --readsUntilWrites <= 0) {
+        const landing = pendingWrites;
+        pendingWrites = [];
+        for (const land of landing) land();
+      }
       const filter = Object.assign({}, ...(q.calls.filter ?? []));
       const data = [...db.values()].filter((r) => matches(r, filter));
       if (q.calls.calculate) return { data: data.reduce((s, r) => s + r.amount, 0) };
@@ -54,6 +63,12 @@ export function fakeLedger(setup: {
     updateTransaction: async (id: string, fields: any) => {
       const row = db.get(id);
       if (!row) throw new Error(`no row ${id}`);
+      if (b.writesLandAfterReads) {
+        if (b.neverLandIds?.includes(id)) return [];
+        if (pendingWrites.length === 0) readsUntilWrites = b.writesLandAfterReads;
+        pendingWrites.push(() => Object.assign(row, fields));
+        return [];
+      }
       if ('payee' in fields) {
         const target = setup.accounts.find((a) => transferPayeeOf(a.id) === fields.payee);
         if (target && !row.transfer_id && !b.noCounterpart) {

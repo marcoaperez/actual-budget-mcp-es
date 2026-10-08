@@ -86,12 +86,21 @@ async function applyLink(api: any, op: Extract<Operation, { type: 'link' }>, m: 
       detail: m.linkRevertFailed(x.id, counterpartId || '?', cause),
     });
     try {
+      // Actual borra la contrapartida a la que apunte X al cambiarle el beneficiario: si X ya
+      // apunta a otra fila que no es la que creamos, revertir destruiría esa otra.
+      const now = await getTransactionById(api, x.id);
+      if (now?.transfer_id && now.transfer_id !== counterpartId) {
+        return failed(m.linkRevertUnsafe(now.transfer_id));
+      }
       // Al crear la transferencia Actual limpia la categoría de X: se restaura junto al beneficiario.
       await api.updateTransaction(x.id, { payee: originalPayee, category: originalCategory });
       if (await pollClean()) return { operation: op, status: 'fallida', detail };
       // X′ puede quedar suelta (la fusión rompió los enlaces y falló): se borra solo si es seguro.
       const orphan = counterpartId ? await getTransactionById(api, counterpartId) : null;
-      if (orphan && !orphan.imported_id && !orphan.reconciled) {
+      if (
+        orphan && !orphan.imported_id && !orphan.reconciled &&
+        (orphan.transfer_id === null || orphan.transfer_id === undefined || orphan.transfer_id === x.id)
+      ) {
         await api.deleteTransaction(counterpartId);
         if (await pollClean()) return { operation: op, status: 'fallida', detail };
       }
@@ -135,6 +144,12 @@ async function applyMerge(api: any, op: Extract<Operation, { type: 'merge' }>, m
     return skip(m.opMergeShape);
   }
   if (keep.transfer_id) return skip(m.opAlreadyTransfer(keep.id));
+  if (drop.transfer_id) {
+    // Al fusionar, Actual reescribe el transfer_id de la contrapartida: debe existir y no estar conciliada.
+    const counterpart = await getTransactionById(api, drop.transfer_id);
+    if (!counterpart) return skip(m.opTxNotFound(drop.transfer_id));
+    if (counterpart.reconciled) return skip(m.opCounterpartReconciled(counterpart.id));
+  }
 
   try {
     await api.mergeTransactions([keep.id, drop.id]);

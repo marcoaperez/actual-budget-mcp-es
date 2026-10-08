@@ -84,6 +84,55 @@ describe('link', () => {
     expect(db.get('x').transfer_id).toBeNull();
   });
 
+  it('no revierte si X ya apunta a otra fila que no es la contrapartida creada', async () => {
+    const other = { id: 'zz', account: 'CASH', date: '2026-09-15', amount: 10000, transfer_id: 'x' };
+    const { api, db } = fakeLedger({ accounts, rows: [x, y, other], behaviour: { failMerge: true } });
+    const realMerge = (api.mergeTransactions as any).getMockImplementation();
+    (api.mergeTransactions as any).mockImplementationOnce(async (ids: any) => {
+      db.get('x').transfer_id = 'zz';
+      return realMerge(ids);
+    });
+    const r = await applyOperation(api, { type: 'link', a: 'x', b: 'y' }, m, { ...noSleep, attempts: 3 });
+    expect(r.status).toBe('fallida');
+    expect(r.detail).toMatch(/zz/);
+    expect(r.detail).toMatch(/cp-1/);
+    expect(api.updateTransaction).toHaveBeenCalledTimes(1);
+    expect(db.get('zz')).toBeTruthy();
+    expect(db.get('x').payee).toBe(transferPayeeOf('B'));
+  });
+
+  it('no borra la contrapartida suelta si ya apunta a otra fila', async () => {
+    const { api, db } = fakeLedger({ accounts, rows: [x, y], behaviour: { mergeDropsLinksThenFails: true } });
+    const realMerge = (api.mergeTransactions as any).getMockImplementation();
+    (api.mergeTransactions as any).mockImplementationOnce(async (ids: any) => {
+      try {
+        await realMerge(ids);
+      } finally {
+        db.get('cp-1').transfer_id = 'elsewhere';
+      }
+    });
+    const r = await applyOperation(api, { type: 'link', a: 'x', b: 'y' }, m, { ...noSleep, attempts: 3 });
+    expect(r.status).toBe('fallida');
+    expect(api.deleteTransaction).not.toHaveBeenCalled();
+    expect(db.has('cp-1')).toBe(true);
+    expect(r.detail).toMatch(/cp-1/);
+  });
+
+  it('no borra la contrapartida suelta si ya está conciliada', async () => {
+    const { api, db } = fakeLedger({ accounts, rows: [x, y], behaviour: { mergeDropsLinksThenFails: true } });
+    const realMerge = (api.mergeTransactions as any).getMockImplementation();
+    (api.mergeTransactions as any).mockImplementationOnce(async (ids: any) => {
+      try {
+        await realMerge(ids);
+      } finally {
+        db.get('cp-1').reconciled = true;
+      }
+    });
+    const r = await applyOperation(api, { type: 'link', a: 'x', b: 'y' }, m, { ...noSleep, attempts: 3 });
+    expect(r.status).toBe('fallida');
+    expect(api.deleteTransaction).not.toHaveBeenCalled();
+  });
+
   it('omite si Y está en una cuenta cerrada', async () => {
     const { api } = fakeLedger({ accounts, rows: [x, { ...y, account: 'OLD' }] });
     const r = await applyOperation(api, { type: 'link', a: 'x', b: 'y' }, m, noSleep);
@@ -138,6 +187,22 @@ describe('merge', () => {
     expect(r.status).toBe('aplicada');
     expect(db.get('imp').transfer_id).toBe('o');
     expect(db.get('o').transfer_id).toBe('imp');
+  });
+
+  it('omite la fusión si la contrapartida del duplicado ya no existe o está conciliada', async () => {
+    const orphanLeg = fakeLedger({ accounts, rows: [imp, { ...man, transfer_id: 'gone' }] });
+    const r1 = await applyOperation(orphanLeg.api, { type: 'merge', keep: 'imp', drop: 'man' }, m, noSleep);
+    expect(r1.status).toBe('omitida');
+    expect(r1.detail).toMatch(/gone/);
+    expect(orphanLeg.api.mergeTransactions).not.toHaveBeenCalled();
+
+    const other = { id: 'o', account: 'A', date: '2026-09-15', amount: -2500, transfer_id: 'man', reconciled: true };
+    const rec = fakeLedger({ accounts, rows: [imp, { ...man, transfer_id: 'o' }, other] });
+    const r2 = await applyOperation(rec.api, { type: 'merge', keep: 'imp', drop: 'man' }, m, noSleep);
+    expect(r2.status).toBe('omitida');
+    expect(r2.detail).toMatch(/contrapartida o/);
+    expect(rec.api.mergeTransactions).not.toHaveBeenCalled();
+    expect(rec.db.has('man')).toBe(true);
   });
 
   it('omite si keep no es el importado o drop sí lo es', async () => {

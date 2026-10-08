@@ -7,6 +7,38 @@ import { syncAfterWrite } from '../core/write-sync.js';
 
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: () => activeMessages().dateFormat });
 
+export const SETTLE_ATTEMPTS = 10;
+export const SETTLE_DELAY_MS = 50;
+
+/**
+ * api/transaction-update de Actual resuelve ANTES de que la escritura aterrice (ver readBack en
+ * tx-read.ts): se sondea hasta que ninguno de los ids siga sin conciliar. Devuelve los que no
+ * llegaron a aplicarse.
+ */
+export async function pendingAfterSettle(
+  api: any,
+  accountId: string,
+  date: string,
+  ids: string[],
+  opts: { attempts?: number; delayMs?: number; sleep?: (ms: number) => Promise<void> } = {},
+): Promise<string[]> {
+  const attempts = opts.attempts ?? SETTLE_ATTEMPTS;
+  const delayMs = opts.delayMs ?? SETTLE_DELAY_MS;
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  let pending = ids;
+  for (let i = 0; i < attempts && pending.length > 0; i++) {
+    if (i > 0) await sleep(delayMs);
+    const { data } = await api.runQuery(
+      api.q('transactions')
+        .filter({ account: accountId, reconciled: false, date: { $lte: date }, id: { $oneof: pending } })
+        .options({ splits: 'all' })
+        .select(['id']),
+    );
+    pending = ((data ?? []) as any[]).map((r) => r.id);
+  }
+  return pending;
+}
+
 const input = {
   account: z.string().min(1).describe('Account id or exact name (case and accents are ignored)'),
   date: DATE.describe('Statement date (YYYY-MM-DD); transactions dated that day are included'),
@@ -55,17 +87,20 @@ export const tool: ToolDef = {
         .select(['id']),
     );
     const ids = ((data ?? []) as any[]).map((r) => r.id);
-    let done = 0;
+    const updated: string[] = [];
     let failure: { id: string; error: string } | null = null;
     for (const id of ids) {
       try {
         await api.updateTransaction(id, { cleared: true, reconciled: true });
-        done++;
+        updated.push(id);
       } catch (e) {
         failure = { id, error: e instanceof Error ? e.message : String(e) };
         break;
       }
     }
+    // Los updates resuelven antes de aterrizar: contar solo lo que se ve conciliado.
+    const pendingIds = updated.length > 0 ? await pendingAfterSettle(api, account.id, a.date, updated) : [];
+    const done = updated.length - pendingIds.length;
     // Siempre sincronizar: lo ya escrito debe llegar al servidor aunque el bucle fallase a medias.
     const sync = await syncAfterWrite(api);
     const syncNote = sync.synced ? undefined : m.syncPending(sync.error!);
@@ -78,6 +113,18 @@ export const tool: ToolDef = {
         failed_id: failure.id,
         error: failure.error,
         note: m.reconcilePartial(done, ids.length),
+        ...(pendingIds.length > 0 ? { pending_ids: pendingIds } : {}),
+        ...(sync.synced ? {} : { sync_pending: true, sync_note: syncNote }),
+      };
+    }
+    if (pendingIds.length > 0) {
+      return {
+        reconciled: false,
+        account: who,
+        date: a.date,
+        marked_count: done,
+        pending_ids: pendingIds,
+        note: m.reconcilePending(done, ids.length),
         ...(sync.synced ? {} : { sync_pending: true, sync_note: syncNote }),
       };
     }
