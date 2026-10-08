@@ -19,7 +19,7 @@ export const tool: ToolDef = {
   title: 'Mark account reconciled',
   description:
     'Once an account matches the bank, mark every unreconciled transaction in it dated on or before date as cleared ' +
-    'and reconciled, like the reconcile button in Actual. Recomputes the balance first and refuses (writing nothing) ' +
+    'and reconciled (rows not yet cleared are also set to cleared; the reconcile button in the Actual app may behave differently). Recomputes the balance first and refuses (writing nothing) ' +
     'if it does not match bank_balance. Never adds a balance-adjustment transaction.',
   readOnly: false,
   annotations: { destructiveHint: false, idempotentHint: true },
@@ -55,15 +55,39 @@ export const tool: ToolDef = {
         .select(['id']),
     );
     const ids = ((data ?? []) as any[]).map((r) => r.id);
-    for (const id of ids) await api.updateTransaction(id, { cleared: true, reconciled: true });
+    let done = 0;
+    let failure: { id: string; error: string } | null = null;
+    for (const id of ids) {
+      try {
+        await api.updateTransaction(id, { cleared: true, reconciled: true });
+        done++;
+      } catch (e) {
+        failure = { id, error: e instanceof Error ? e.message : String(e) };
+        break;
+      }
+    }
+    // Siempre sincronizar: lo ya escrito debe llegar al servidor aunque el bucle fallase a medias.
     const sync = await syncAfterWrite(api);
+    const syncNote = sync.synced ? undefined : m.syncPending(sync.error!);
+    if (failure) {
+      return {
+        reconciled: false,
+        account: who,
+        date: a.date,
+        marked_count: done,
+        failed_id: failure.id,
+        error: failure.error,
+        note: m.reconcilePartial(done, ids.length),
+        ...(sync.synced ? {} : { sync_pending: true, sync_note: syncNote }),
+      };
+    }
     return {
       reconciled: true,
       account: who,
       date: a.date,
       balance: money(actual),
-      marked_count: ids.length,
-      ...(sync.synced ? {} : { sync_pending: true, note: m.syncPending(sync.error!) }),
+      marked_count: done,
+      ...(sync.synced ? {} : { sync_pending: true, note: syncNote }),
     };
   },
 };

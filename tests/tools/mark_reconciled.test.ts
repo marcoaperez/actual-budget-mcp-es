@@ -45,6 +45,20 @@ describe('mark_reconciled', () => {
     expect(api.updateTransaction).not.toHaveBeenCalled();
   });
 
+  it('si un update falla a medias, informa del progreso y sincroniza igualmente', async () => {
+    const { api, db } = fakeLedger({ accounts, rows });
+    const real = (api.updateTransaction as any).getMockImplementation();
+    (api.updateTransaction as any).mockImplementationOnce(real).mockRejectedValueOnce(new Error('boom'));
+    const r: any = await tool.handler({ account: 'A', date: '2026-09-30', bank_balance: 1234.56 }, { api, config: testConfig });
+    expect(r.reconciled).toBe(false);
+    expect(r.marked_count).toBe(1);
+    expect(r.failed_id).toBeTruthy();
+    expect(r.error).toBe('boom');
+    expect(r.note).toBeTruthy();
+    expect([...db.values()].filter((x) => x.reconciled && x.id !== 't3')).toHaveLength(1);
+    expect(api.sync).toHaveBeenCalledTimes(2);
+  });
+
   it('pide el saldo al cierre del día de la fecha', async () => {
     const { api } = fakeLedger({ accounts, rows });
     await tool.handler({ account: 'A', date: '2026-09-30', bank_balance: 0 }, { api, config: testConfig });
