@@ -44,6 +44,7 @@
     "demo:bootstrap": "tsx scripts/demo/bootstrap-demo.ts",
     "demo:reset": "tsx scripts/demo/reset-demo.ts",
     "demo:seed": "tsx scripts/demo/seed-demo.ts",
+    "dev:refresh": "tsx scripts/dev/refresh.ts",
     "prepare": "npm run build"
   },
   "dependencies": {
