@@ -33,7 +33,7 @@ async function usableRow(api: any, id: string, m: Messages): Promise<{ row?: any
   const row = await getTransactionById(api, id);
   if (!row) return { why: m.opTxNotFound(id) };
   // Las lecturas agrupadas devuelven el PADRE si se pide un hijo: ese desajuste delata el split.
-  if (row.id !== id || row.is_parent) return { why: m.opSplitRow(id) };
+  if (row.id !== id || row.is_parent || row.is_child || row.parent_id) return { why: m.opSplitRow(id) };
   if (row.reconciled) return { why: m.opReconciled(id) };
   return { row };
 }
@@ -52,6 +52,8 @@ async function applyLink(api: any, op: Extract<Operation, { type: 'link' }>, m: 
 
   // Y = la pata que sobrevive a la fusión: la importada si solo una lo es.
   const [x, y] = !rb.row.imported_id && ra.row.imported_id ? [rb.row, ra.row] : [ra.row, rb.row];
+  const accountsList = ((await api.getAccounts()) ?? []) as any[];
+  if (accountsList.find((acc) => acc.id === y.account)?.closed) return skip(m.opAccountUnavailable(y.account));
   const { byTransferAccount } = await getPayeeIndex(api);
   const transferPayee = byTransferAccount.get(y.account);
   if (!transferPayee) return skip(m.opNoTransferPayee(y.account));
@@ -60,14 +62,42 @@ async function applyLink(api: any, op: Extract<Operation, { type: 'link' }>, m: 
   const attempts = opts.attempts ?? COUNTERPART_POLL_ATTEMPTS;
   const delayMs = opts.delayMs ?? COUNTERPART_POLL_DELAY_MS;
   const originalPayee = x.payee ?? null;
+  const originalCategory = x.category ?? null;
   let counterpartId = '';
 
+  // ¿X volvió a su estado original y la contrapartida ya no existe?
+  const isClean = async (): Promise<boolean> => {
+    const cur = await getTransactionById(api, x.id);
+    if (!cur || (cur.payee ?? null) !== originalPayee || cur.transfer_id) return false;
+    return !counterpartId || !(await getTransactionById(api, counterpartId));
+  };
+  const pollClean = async (): Promise<boolean> => {
+    for (let i = 0; i < attempts; i++) {
+      if (await isClean()) return true;
+      await sleep(delayMs);
+    }
+    return false;
+  };
+
   const revert = async (detail: string): Promise<OpResult> => {
+    const failed = (cause: string): OpResult => ({
+      operation: op,
+      status: 'fallida',
+      detail: m.linkRevertFailed(x.id, counterpartId || '?', cause),
+    });
     try {
-      await api.updateTransaction(x.id, { payee: originalPayee });
-      return { operation: op, status: 'fallida', detail };
+      // Al crear la transferencia Actual limpia la categoría de X: se restaura junto al beneficiario.
+      await api.updateTransaction(x.id, { payee: originalPayee, category: originalCategory });
+      if (await pollClean()) return { operation: op, status: 'fallida', detail };
+      // X′ puede quedar suelta (la fusión rompió los enlaces y falló): se borra solo si es seguro.
+      const orphan = counterpartId ? await getTransactionById(api, counterpartId) : null;
+      if (orphan && !orphan.imported_id && !orphan.reconciled) {
+        await api.deleteTransaction(counterpartId);
+        if (await pollClean()) return { operation: op, status: 'fallida', detail };
+      }
+      return failed(detail);
     } catch (err) {
-      return { operation: op, status: 'fallida', detail: m.linkRevertFailed(x.id, counterpartId || '?', errMessage(err)) };
+      return failed(errMessage(err));
     }
   };
 

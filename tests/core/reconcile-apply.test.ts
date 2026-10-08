@@ -64,6 +64,43 @@ describe('link', () => {
     expect(r.detail).toMatch(/y/);
   });
 
+  it('si la fusión falla, restaura también la categoría de X', async () => {
+    const { api, db } = fakeLedger({ accounts, rows: [{ ...x, category: 'c1' }, y], behaviour: { failMerge: true } });
+    const r = await applyOperation(api, { type: 'link', a: 'x', b: 'y' }, m, noSleep);
+    expect(r.status).toBe('fallida');
+    expect(db.get('x').category).toBe('c1');
+    expect(db.get('x').payee).toBe('p-orig');
+  });
+
+  it('si la fusión rompe los enlaces y falla, borra la contrapartida suelta y restaura X', async () => {
+    const { api, db } = fakeLedger({ accounts, rows: [{ ...x, category: 'c1' }, y], behaviour: { mergeDropsLinksThenFails: true } });
+    const r = await applyOperation(api, { type: 'link', a: 'x', b: 'y' }, m, noSleep);
+    expect(r.status).toBe('fallida');
+    expect(api.deleteTransaction).toHaveBeenCalledWith('cp-1');
+    expect(db.has('cp-1')).toBe(false);
+    expect(db.size).toBe(2);
+    expect(db.get('x').payee).toBe('p-orig');
+    expect(db.get('x').category).toBe('c1');
+    expect(db.get('x').transfer_id).toBeNull();
+  });
+
+  it('omite si Y está en una cuenta cerrada', async () => {
+    const { api } = fakeLedger({ accounts, rows: [x, { ...y, account: 'OLD' }] });
+    const r = await applyOperation(api, { type: 'link', a: 'x', b: 'y' }, m, noSleep);
+    expect(r.status).toBe('omitida');
+    expect(api.updateTransaction).not.toHaveBeenCalled();
+  });
+
+  it('omite si un movimiento es hijo o padre de un split', async () => {
+    for (const patch of [{ is_child: true, parent_id: 'p' }, { is_parent: true }]) {
+      const { api } = fakeLedger({ accounts, rows: [{ ...x, ...patch }, y] });
+      const r = await applyOperation(api, { type: 'link', a: 'x', b: 'y' }, m, noSleep);
+      expect(r.status).toBe('omitida');
+      expect(r.detail).toMatch(/split/);
+      expect(api.updateTransaction).not.toHaveBeenCalled();
+    }
+  });
+
   it('omite si algo cambió entre proponer y aplicar', async () => {
     const cases: [any[], string][] = [
       [[{ ...x, reconciled: true }, y], 'conciliad'],

@@ -21,7 +21,7 @@ const localDay = (d: Date) =>
 export function fakeLedger(setup: {
   accounts: any[];
   rows: any[];
-  behaviour?: { counterpartAfterReads?: number; noCounterpart?: boolean; failMerge?: boolean; mergeLosesLink?: boolean };
+  behaviour?: { counterpartAfterReads?: number; noCounterpart?: boolean; failMerge?: boolean; mergeLosesLink?: boolean; mergeDropsLinksThenFails?: boolean };
 }) {
   const b = setup.behaviour ?? {};
   const db = new Map<string, any>(
@@ -61,6 +61,9 @@ export function fakeLedger(setup: {
             const cp = { id: `cp-${++created}`, account: target.id, date: row.date, amount: -row.amount, imported_id: null, transfer_id: id, reconciled: false, cleared: false, payee: transferPayeeOf(row.account), is_parent: false };
             db.set(cp.id, cp);
             row.transfer_id = cp.id;
+            // Como addTransfer de Actual: con ambas cuentas del mismo lado del presupuesto se limpia la categoría.
+            const srcAcct = setup.accounts.find((a) => a.id === row.account);
+            if (!!srcAcct?.offbudget === !!target.offbudget) row.category = null;
           };
           if (b.counterpartAfterReads) {
             pendingCounterpart = make;
@@ -73,8 +76,20 @@ export function fakeLedger(setup: {
       Object.assign(row, fields);
       return [];
     },
+    deleteTransaction: async (id: string) => {
+      db.delete(id);
+    },
     mergeTransactions: async ([first, second]: [string, string]) => {
       if (b.failMerge) throw new Error('merge boom');
+      if (b.mergeDropsLinksThenFails) {
+        for (const id of [first, second]) {
+          const r = db.get(id);
+          const other = r?.transfer_id ? db.get(r.transfer_id) : null;
+          if (other) other.transfer_id = null;
+          if (r) r.transfer_id = null;
+        }
+        throw new Error('merge boom');
+      }
       const r1 = db.get(first);
       const r2 = db.get(second);
       const keep = r1.imported_id && !r2.imported_id ? r1 : r2;
