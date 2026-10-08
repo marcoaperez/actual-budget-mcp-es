@@ -121,6 +121,8 @@ const es = {
     `Movimientos anteriores de este beneficiario se convirtieron en transferencias a "${account}"`,
   reasonCreateFromName: (account: string) => `El beneficiario o las notas mencionan la cuenta "${account}"`,
   reconcileMatchesNext: 'El saldo cuadra. Si quieres fijarlo, usa mark_reconciled con la misma fecha y saldo',
+  reconcileMismatch: (difference: string) =>
+    `No cuadra (diferencia banco − Actual: ${difference}); no se ha marcado nada. Usa reconcile_account para ver la causa`,
   reconcileHintExtra: 'Su importe es exactamente la diferencia: puede que sobre en Actual (duplicado o mal fechado)',
   opTxNotFound: (id: string) => `El movimiento ${id} ya no existe`,
   opSplitRow: (id: string) => `El movimiento ${id} forma parte de un split`,
@@ -255,6 +257,8 @@ const en: Messages = {
     `Earlier transactions from this payee were turned into transfers to "${account}"`,
   reasonCreateFromName: (account: string) => `The payee or notes mention the account "${account}"`,
   reconcileMatchesNext: 'The balance matches. To lock it in, call mark_reconciled with the same date and balance',
+  reconcileMismatch: (difference: string) =>
+    `It does not match (bank − Actual difference: ${difference}); nothing was marked. Use reconcile_account to find the cause`,
   reconcileHintExtra: 'Its amount is exactly the difference: it may be extra in Actual (duplicate or wrong date)',
   opTxNotFound: (id: string) => `Transaction ${id} no longer exists`,
   opSplitRow: (id: string) => `Transaction ${id} is part of a split`,

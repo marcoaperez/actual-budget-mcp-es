@@ -114,6 +114,7 @@
     { "name": "get_account_transfer_payee", "description": "The payee representing an account in transfers" },
     { "name": "set_transaction_transfer", "description": "Turn a transaction into a transfer with another account" },
     { "name": "apply_reconciliation_fixes", "description": "Apply accepted reconciliation fixes (link, merge, create transfer), revalidating each" },
+    { "name": "mark_reconciled", "description": "Mark an account reconciled up to a date once it matches the bank" },
     { "name": "get_rules", "description": "List Actual automation rules" },
     { "name": "find_transfer_issues", "description": "Find unlinked transfers, duplicates and missing transfer legs, with proposed fixes" },
     { "name": "reconcile_account", "description": "Compare an account with the bank balance at a date and explain the difference" },
