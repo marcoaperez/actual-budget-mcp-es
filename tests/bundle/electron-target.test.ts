@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseElectronVersion,
-  resolveElectronTarget,
-  parsePrebuildAbi,
-  describeAbiCheck,
+  classifyAddon,
+  checkAddons,
 } from '../../scripts/electron-target.js';
 
 // Salida real de `plutil -p` sobre el Info.plist del Electron Framework de Claude Desktop.
@@ -23,65 +22,55 @@ describe('parseElectronVersion', () => {
   });
 });
 
-describe('resolveElectronTarget', () => {
-  it('usa la versión detectada en Claude Desktop', () => {
-    expect(resolveElectronTarget({ detected: '42.7.0' })).toBe('42.7.0');
+
+// Salida real de `nm -gU` (macOS antepone "_" a los símbolos C).
+const NM_NAPI = `0000000000012340 T _napi_register_module_v1
+0000000000098760 T _node_api_module_get_api_version_v1`;
+const NM_ABI_146 = `0000000000012340 T _node_register_module_v146`;
+
+describe('classifyAddon', () => {
+  it('reconoce un binario N-API', () => {
+    expect(classifyAddon(NM_NAPI)).toEqual({ kind: 'napi' });
   });
 
-  it('deja forzar la versión por encima de la detectada', () => {
-    expect(resolveElectronTarget({ override: '41.2.0', detected: '42.7.0' })).toBe('41.2.0');
+  it('reconoce un binario atado a un ABI concreto y lee su número', () => {
+    expect(classifyAddon(NM_ABI_146)).toEqual({ kind: 'abi', abi: 146 });
   });
 
-  it('falla con un mensaje accionable si no hay ninguna versión', () => {
-    expect(() => resolveElectronTarget({ detected: null })).toThrow(/ELECTRON_TARGET/);
-  });
-
-  it('rechaza una versión que no sea x.y.z', () => {
-    expect(() => resolveElectronTarget({ override: '42' })).toThrow(/42/);
-  });
-});
-
-describe('parsePrebuildAbi', () => {
-  it('lee el ABI del nombre del prebuild que descarga prebuild-install', () => {
-    const output =
-      'prebuild-install info looking for cached prebuild @ ' +
-      '/Users/x/.npm/_prebuilds/0e3bca-better-sqlite3-v12.11.1-electron-v146-darwin-arm64.tar.gz';
-    expect(parsePrebuildAbi(output)).toBe(146);
-  });
-
-  it('ignora los prebuilds de node: el bundle solo vale si es de electron', () => {
-    const output = 'prebuild-install info unpacking @ better-sqlite3-v12.11.1-node-v147-darwin-arm64.tar.gz';
-    expect(parsePrebuildAbi(output)).toBeNull();
+  it('devuelve unknown si no hay ningún símbolo de registro', () => {
+    expect(classifyAddon('0000000000000001 T _otra_cosa')).toEqual({ kind: 'unknown' });
   });
 });
 
-describe('describeAbiCheck', () => {
-  // El binario nativo se compila contra el ABI de Electron, así que el Node que empaqueta
-  // NO debe poder cargarlo: que cargue es la señal de que viajaría el binario equivocado.
-  const mismatch = new Error(
-    "The module '/x/better_sqlite3.node'\nwas compiled against a different Node.js version using\n" +
-      'NODE_MODULE_VERSION 146. This version of Node.js requires\nNODE_MODULE_VERSION 147.',
-  );
-
-  it('acepta el binario cuando declara el ABI esperado', () => {
-    expect(describeAbiCheck(mismatch, 146).ok).toBe(true);
+describe('checkAddons', () => {
+  it('acepta cuando todos los binarios son N-API', () => {
+    const r = checkAddons([
+      { file: 'a/darwin-arm64.node', nm: NM_NAPI },
+      { file: 'b/linux-x64.node', nm: NM_NAPI },
+    ]);
+    expect(r.ok).toBe(true);
+    expect(r.detail).toMatch(/2/);
   });
 
-  it('rechaza el binario cuando declara otro ABI', () => {
-    const check = describeAbiCheck(mismatch, 145);
-    expect(check.ok).toBe(false);
-    expect(check.detail).toMatch(/146/);
+  it('rechaza si alguno de varios binarios está atado a un ABI', () => {
+    const r = checkAddons([
+      { file: 'a/bueno.node', nm: NM_NAPI },
+      { file: 'b/viejo.node', nm: NM_ABI_146 },
+    ]);
+    expect(r.ok).toBe(false);
+    expect(r.detail).toMatch(/viejo\.node/);
+    expect(r.detail).toMatch(/146/);
   });
 
-  it('rechaza el binario si carga con el Node que empaqueta', () => {
-    const check = describeAbiCheck(null, 146);
-    expect(check.ok).toBe(false);
-    expect(check.detail).toMatch(/Node/);
+  it('rechaza un binario que no se puede clasificar', () => {
+    const r = checkAddons([{ file: 'raro.node', nm: '' }]);
+    expect(r.ok).toBe(false);
+    expect(r.detail).toMatch(/raro\.node/);
   });
 
-  it('rechaza un fallo de carga que no sea de ABI', () => {
-    const check = describeAbiCheck(new Error('file not found'), 146);
-    expect(check.ok).toBe(false);
-    expect(check.detail).toMatch(/file not found/);
+  it('rechaza si no hay ningún binario', () => {
+    const r = checkAddons([]);
+    expect(r.ok).toBe(false);
+    expect(r.detail).toMatch(/ningún/);
   });
 });
