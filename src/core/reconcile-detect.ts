@@ -81,8 +81,9 @@ export function detectCreateTransfers(input: DetectInput, m: Messages, linkable:
     if (!isOpen(x) || !synced.has(x.account) || linkable.has(x.id)) continue;
     const payeeName = (x.payee ? input.payeeNames.get(x.payee) : undefined) ?? '';
     const key = normalizeText(x.imported_payee ?? payeeName);
+    const rawHistory = key ? [...(input.history.get(key) ?? [])] : [];
     const fromHistory = key
-      ? [...(input.history.get(key) ?? [])]
+      ? rawHistory
           .map((id) => manual.find((a) => a.id === id))
           .filter((a): a is AccountInfo => !!a && a.id !== x.account)
       : [];
@@ -90,7 +91,7 @@ export function detectCreateTransfers(input: DetectInput, m: Messages, linkable:
       for (const target of fromHistory) {
         out.push({
           operation: { type: 'create_transfer', transaction: x.id, account: target.id },
-          confidence: fromHistory.length === 1 ? 'alta' : 'dudosa',
+          confidence: rawHistory.length === 1 && fromHistory.length === 1 ? 'alta' : 'dudosa',
           reason: m.reasonCreateFromHistory(target.name),
           transactions: [x],
         });
@@ -115,9 +116,14 @@ export function detectCreateTransfers(input: DetectInput, m: Messages, linkable:
 const CONFIDENCE_ORDER = { alta: 0, dudosa: 1 } as const;
 
 export function detectAll(input: DetectInput, m: Messages): Proposal[] {
-  const links = detectLinks(input.rows, m);
-  const linkable = new Set(links.flatMap((p) => p.transactions.map((t) => t.id)));
-  return [...links, ...detectMerges(input.rows, m), ...detectCreateTransfers(input, m, linkable)].sort(
+  // Las fusiones van primero: un movimiento fusionado no se empareja ni se convierte en transferencia.
+  const merges = detectMerges(input.rows, m);
+  const inMerge = new Set(
+    merges.flatMap((p) => (p.operation.type === 'merge' ? [p.operation.keep, p.operation.drop] : [])),
+  );
+  const links = detectLinks(input.rows.filter((r) => !inMerge.has(r.id)), m);
+  const excluded = new Set([...links.flatMap((p) => p.transactions.map((t) => t.id)), ...inMerge]);
+  return [...links, ...merges, ...detectCreateTransfers(input, m, excluded)].sort(
     (p, q) => CONFIDENCE_ORDER[p.confidence] - CONFIDENCE_ORDER[q.confidence],
   );
 }

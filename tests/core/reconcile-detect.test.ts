@@ -94,6 +94,14 @@ describe('detectCreateTransfers', () => {
     }), m, new Set());
     expect(p).toEqual([expect.objectContaining({ operation: { type: 'create_transfer', transaction: 'x', account: 'PEN' }, confidence: 'dudosa' })]);
   });
+  it('el historial es alta solo si el conjunto bruto tiene una única cuenta', () => {
+    const accs = [...accounts, acc({ id: 'BBVA2', name: 'Otra', bankSynced: true })];
+    const p = detectCreateTransfers(input({
+      rows: [tx({ id: 'x', imported_id: 'i', imported_payee: 'Traspaso' })], accounts: accs,
+      history: new Map([['traspaso', new Set(['CASH', 'BBVA2'])]]),
+    }), m, new Set());
+    expect(p).toEqual([expect.objectContaining({ operation: { type: 'create_transfer', transaction: 'x', account: 'CASH' }, confidence: 'dudosa' })]);
+  });
   it('ignora nombres de cuenta demasiado cortos', () => {
     const p = detectCreateTransfers(input({ rows: [tx({ id: 'x', imported_id: 'i', imported_payee: 'ab cd' })], accounts }), m, new Set());
     expect(p).toEqual([]);
@@ -117,5 +125,19 @@ describe('detectAll', () => {
     expect(p[0].confidence).toBe('alta');
     expect(p[0].operation.type).toBe('merge');
     expect(p.slice(1).every((q) => q.confidence === 'dudosa')).toBe(true);
+  });
+  it('una fusión excluye a sus movimientos de enlaces', () => {
+    const p = detectAll(input({
+      rows: [tx({ id: 'k', imported_id: 'i' }), tx({ id: 'd' }), tx({ id: 'Y', account: 'B', amount: 100 })],
+    }), m);
+    expect(p.map((q) => q.operation)).toEqual([{ type: 'merge', keep: 'k', drop: 'd' }]);
+  });
+  it('una fusión excluye al importado de create_transfer aunque haya historial', () => {
+    const p = detectAll(input({
+      rows: [tx({ id: 'x', imported_id: 'i', imported_payee: 'Traspaso' }), tx({ id: 'd' })],
+      accounts: [acc({ id: 'A', name: 'BBVA', bankSynced: true }), acc({ id: 'CASH', name: 'Efectivo' })],
+      history: new Map([['traspaso', new Set(['CASH'])]]),
+    }), m);
+    expect(p.map((q) => q.operation.type)).toEqual(['merge']);
   });
 });
