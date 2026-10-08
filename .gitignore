@@ -4,6 +4,7 @@
 node_modules/
 .actual/
 data/
+dev/.cache/
 dist/
 build/
 *.log

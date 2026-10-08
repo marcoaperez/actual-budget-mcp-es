@@ -119,6 +119,14 @@ whole `account.sqlite` broke the registry on the demo instance.) If not, the fal
 `auth` and change the password through the server's change-password endpoint after logging in with
 a one-off token — to be designed only if needed.
 
+## Neutralisation results
+
+Run on 2026-10-08 against `actualbudget/actual-server:26.10.0` on the sandbox port with synthetic
+data (`scripts/dev/spike-neutralise.ts`):
+- after `DELETE FROM secrets/auth/sessions`, `needs-bootstrap` -> `bootstrapped: false`; bootstrap `actual-dev` -> `status: ok` (token returned);
+- budget listed: yes; downloadable with the new password: yes; account and balance intact: yes (`Cuenta spike`, 12345).
+- Conclusion: the neutralisation in the spec works as designed.
+
 ## Isolation guarantees
 
 - The sandbox is a different server holding its own copy; no client points at both, so nothing

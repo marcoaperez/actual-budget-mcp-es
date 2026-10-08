@@ -1,0 +1,10 @@
+# Sandbox local con una COPIA del presupuesto real (ver docs/superpowers/specs/2026-10-08-dev-sandbox-design.md).
+# Solo escucha en 127.0.0.1. Los datos viven en dev/data/ (ignorado por git) y se rehacen con npm run dev:refresh.
+name: actual-dev-sandbox
+services:
+  actual:
+    image: actualbudget/actual-server:26.10.0
+    ports:
+      - "127.0.0.1:5007:5006"
+    volumes:
+      - ./data:/data
