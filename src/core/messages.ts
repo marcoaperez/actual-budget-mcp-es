@@ -109,6 +109,17 @@ const es = {
     'partes por separado o deshaz el split primero',
   ruleDeleteRejected: (id: string) => `Actual rechazó el borrado de la regla ${id}; vuelve a consultarla con get_rules`,
 
+  // --- Conciliación ---
+  reasonLink: (days: number, unique: boolean) =>
+    `Importes contrarios en dos cuentas con ${days} día(s) de diferencia` +
+    (unique ? '; es la única pareja posible' : '; hay más de una pareja posible'),
+  reasonMerge: (days: number, unique: boolean) =>
+    `Mismo importe en la misma cuenta con ${days} día(s) de diferencia: uno vino del banco y el otro no` +
+    (unique ? '' : '; hay más de un candidato'),
+  reasonCreateFromHistory: (account: string) =>
+    `Movimientos anteriores de este beneficiario se convirtieron en transferencias a "${account}"`,
+  reasonCreateFromName: (account: string) => `El beneficiario o las notas mencionan la cuenta "${account}"`,
+
   // --- Infraestructura del presupuesto ---
   budgetClosed: (cause: string, dataDir: string) =>
     'El presupuesto de Actual está cerrado y no se pudo volver a abrir ' +
@@ -212,6 +223,17 @@ const en: Messages = {
     `Transaction ${id} is the parent of a split and Actual cannot turn it into a transfer: convert its parts ` +
     'individually or undo the split first',
   ruleDeleteRejected: (id: string) => `Actual refused to delete rule ${id}; query it again with get_rules`,
+
+  // --- Reconciliation ---
+  reasonLink: (days: number, unique: boolean) =>
+    `Opposite amounts in two accounts, ${days} day(s) apart` +
+    (unique ? '; it is the only possible pair' : '; there is more than one possible pair'),
+  reasonMerge: (days: number, unique: boolean) =>
+    `Same amount in the same account, ${days} day(s) apart: one came from the bank and the other did not` +
+    (unique ? '' : '; there is more than one candidate'),
+  reasonCreateFromHistory: (account: string) =>
+    `Earlier transactions from this payee were turned into transfers to "${account}"`,
+  reasonCreateFromName: (account: string) => `The payee or notes mention the account "${account}"`,
 
   // --- Infraestructura del presupuesto ---
   budgetClosed: (cause: string, dataDir: string) =>
