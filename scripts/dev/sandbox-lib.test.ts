@@ -1,11 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   NEUTRALISE_SQL, SOURCE_KEYS_BACKUP, parseEnvFile, setEnvValue, missingKeys, buildFetch, findBudget,
-  portHolderIsSandbox, buildDevEnv, checkGuard, DEV_URL,
+  portHolderIsSandbox, buildDevEnv, checkGuard, DEV_URL, forwardSignals,
 } from './sandbox-lib.js';
 
 describe('env file', () => {
@@ -100,7 +101,7 @@ describe('dev/.env.example', () => {
 
 describe('.gitignore', () => {
   it('keeps the copy, the cache and dev/.env out of git', () => {
-    for (const p of ['dev/data/server-files/account.sqlite', 'dev/.cache/x', 'dev/.env']) {
+    for (const p of ['dev/data/server-files/account.sqlite', 'dev/.cache/x', 'dev/.cache-instance-123/x', 'dev/.env']) {
       expect(() => execFileSync('git', ['check-ignore', '-q', p])).not.toThrow();
     }
     expect(() => execFileSync('git', ['check-ignore', '-q', 'dev/.env.example'])).toThrow();
@@ -142,5 +143,21 @@ describe('checkGuard', () => {
   });
   it('rejects when the sandbox is not running', async () => {
     expect(await checkGuard(ok, async () => false)).toMatch(/npm run dev:refresh/);
+  });
+});
+
+describe('forwardSignals', () => {
+  it('forwards SIGINT/SIGTERM/SIGHUP to the child and kills it when stdin ends', () => {
+    const proc = new EventEmitter() as EventEmitter & { stdin: EventEmitter };
+    proc.stdin = new EventEmitter();
+    const child = { kill: vi.fn() };
+    forwardSignals(proc, child);
+    proc.emit('SIGINT');
+    proc.emit('SIGTERM');
+    proc.emit('SIGHUP');
+    expect(child.kill.mock.calls).toEqual([['SIGINT'], ['SIGTERM'], ['SIGHUP']]);
+    proc.stdin.emit('end');
+    expect(child.kill).toHaveBeenCalledTimes(4);
+    expect(child.kill).toHaveBeenLastCalledWith('SIGTERM');
   });
 });

@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildDevEnv, checkGuard, parseEnvFile } from './sandbox-lib.js';
+import { buildDevEnv, checkGuard, forwardSignals, parseEnvFile } from './sandbox-lib.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const devEnvPath = path.join(ROOT, 'dev', '.env');
@@ -28,5 +28,10 @@ const child = spawn(process.execPath, [path.join(ROOT, 'node_modules', 'tsx', 'd
   cwd: ROOT,
   env,
   stdio: 'inherit',
+});
+forwardSignals(process, child);
+child.on('error', (err) => {
+  console.error(`[actual-dev] No se pudo lanzar el MCP: ${err.message}`);
+  process.exit(1);
 });
 child.on('exit', (code) => process.exit(code ?? 1));

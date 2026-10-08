@@ -97,3 +97,17 @@ export async function checkGuard(env: Record<string, string>, fetchInfo: (url: s
   }
   return null;
 }
+
+/** Reenvía las señales de terminación al hijo y lo mata si el stdin (canal MCP) se cierra,
+ *  para que el hijo haga su cierre ordenado y no quede huérfano. */
+export function forwardSignals(
+  proc: { on(ev: string, fn: () => void): unknown; stdin: { on(ev: string, fn: () => void): unknown } },
+  child: { kill(sig?: NodeJS.Signals): unknown },
+): void {
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+    proc.on(sig, () => child.kill(sig));
+  }
+  const closed = () => child.kill('SIGTERM');
+  proc.stdin.on('end', closed);
+  proc.stdin.on('close', closed);
+}

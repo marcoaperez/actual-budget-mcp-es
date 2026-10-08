@@ -5,6 +5,7 @@ node_modules/
 .actual/
 data/
 dev/.cache/
+dev/.cache-instance-*/
 dist/
 build/
 *.log
