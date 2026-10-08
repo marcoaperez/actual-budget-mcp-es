@@ -245,25 +245,22 @@ The `handler(input, ctx)` receives an initialized `{ api, config }` context; use
 
 ### Releasing a bundle
 
-> **The bundle is tied to Claude Desktop's Electron ABI.** Extensions run inside Claude
-> Desktop's own Electron, not the system's Node, so `better-sqlite3` has to be compiled for
-> that runtime. `npm run bundle` reads the Electron version out of the installed
-> `Claude.app`, reinstalls the prebuilt binary for it, and then verifies what actually ships
-> by `dlopen`-ing it with the packaging Node — which *must* fail, reporting Electron's ABI.
-> If it loads, the Node-targeted binary slipped in and packaging aborts.
->
-> So: **package on a machine running the Claude Desktop you are targeting**, or pass
-> `ELECTRON_TARGET=x.y.z npm run bundle`. Re-release whenever Claude Desktop bumps its
-> Electron major — the previous bundle stops working for everyone on the new version.
+> **The bundle is N-API and independent of Claude Desktop's Electron.** `better-sqlite3` 13
+> (shipped with `@actual-app/api` 26.10) loads in any Node or Electron, so there is no
+> per-Electron-version build and nothing to re-release when Claude Desktop bumps Electron.
+> `npm run bundle` ships the prebuilt binaries as `npm ci` leaves them and verifies with `nm`
+> that the `darwin-*` ones are N-API (`darwin-arm64` is required; otherwise packaging aborts).
+> The bundle is macOS-only (`manifest.json` declares `darwin`).
 
 1. Bump `version` in `package.json` **and** `manifest.json` (a test enforces they match).
-2. `npm test && npm run build && npm run bundle` — the last line reports the Electron
-   version and ABI the bundle was built for. Note it in the release description.
+2. `npm test && npm run build && npm run bundle` — the last lines report the detected
+   Claude Desktop Electron version (informational only), the N-API check result, and the
+   bundle path and size.
 3. Verify the bundle:
    ```bash
    npx mcpb validate manifest.json
    unzip -l build/actual-budget-mcp-es.mcpb | grep -E 'tests/|docs/|\.env' | grep -v 'node_modules/'  # expect no output
-   unzip -l build/actual-budget-mcp-es.mcpb | grep -c 'better_sqlite3.node'  # expect at least 1
+   unzip -l build/actual-budget-mcp-es.mcpb | grep -c 'prebuilds/darwin-arm64.node'  # expect at least 1
    ```
    `npx mcpb info <file>` (CLI 2.1.2) only prints file name, size and signature status — it
    does not check the manifest, so it's not a substitute for `validate`. The `node_modules/`

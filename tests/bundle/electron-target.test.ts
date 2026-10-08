@@ -22,7 +22,6 @@ describe('parseElectronVersion', () => {
   });
 });
 
-
 // Salida real de `nm -gU` (macOS antepone "_" a los símbolos C).
 const NM_NAPI = `0000000000012340 T _napi_register_module_v1
 0000000000098760 T _node_api_module_get_api_version_v1`;

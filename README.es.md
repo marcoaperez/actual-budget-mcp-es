@@ -267,26 +267,22 @@ El `handler(input, ctx)` recibe el contexto `{ api, config }` ya inicializado; u
 
 ### Publicar un bundle
 
-> **El bundle queda atado al ABI de Electron de Claude Desktop.** Las extensiones corren
-> dentro del Electron de Claude, no bajo el Node del sistema, así que `better-sqlite3` tiene
-> que estar compilado para ese runtime. `npm run bundle` lee la versión de Electron del
-> `Claude.app` instalado, reinstala el prebuild para ella y verifica el binario que
-> realmente viaja haciéndole `dlopen` con el Node que empaqueta — que *debe* fallar
-> declarando el ABI de Electron. Si carga, es que se coló el binario de Node y el
-> empaquetado se detiene.
->
-> Por tanto: **empaqueta en un equipo con el Claude Desktop al que apuntas**, o pasa
-> `ELECTRON_TARGET=x.y.z npm run bundle`. Vuelve a publicar cada vez que Claude Desktop
-> suba de Electron mayor — el bundle anterior deja de funcionar para todo el que actualice.
+> **El bundle es N-API e independiente del Electron de Claude Desktop.** `better-sqlite3` 13
+> (que trae `@actual-app/api` 26.10) carga en cualquier Node o Electron, así que no hay un
+> build por versión de Electron ni hace falta volver a publicar cuando Claude Desktop suba de
+> Electron. `npm run bundle` incluye los binarios precompilados tal como los deja `npm ci` y
+> verifica con `nm` que los `darwin-*` son N-API (`darwin-arm64` es obligatorio; si falta, el
+> empaquetado se detiene). El bundle es solo para macOS (`manifest.json` declara `darwin`).
 
 1. Actualiza la `version` en `package.json` **y** en `manifest.json` (un test obliga a que coincidan).
-2. `npm test && npm run build && npm run bundle` — la última línea indica para qué versión
-   de Electron y qué ABI se construyó. Anótalo en la descripción de la release.
+2. `npm test && npm run build && npm run bundle` — las últimas líneas informan de la versión
+   de Electron de Claude Desktop detectada (solo informativa), el resultado de la
+   verificación N-API y la ruta y el tamaño del bundle.
 3. Verifica el bundle:
    ```bash
    npx mcpb validate manifest.json
    unzip -l build/actual-budget-mcp-es.mcpb | grep -E 'tests/|docs/|\.env' | grep -v 'node_modules/'  # sin salida
-   unzip -l build/actual-budget-mcp-es.mcpb | grep -c 'better_sqlite3.node'  # al menos 1
+   unzip -l build/actual-budget-mcp-es.mcpb | grep -c 'prebuilds/darwin-arm64.node'  # al menos 1
    ```
    `npx mcpb info <archivo>` (CLI 2.1.2) solo imprime nombre, tamaño y estado de firma —
    no valida el manifiesto, así que no sustituye a `validate`. La exclusión de

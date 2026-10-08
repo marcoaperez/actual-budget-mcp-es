@@ -1,9 +1,9 @@
 // actual-client.ts — envoltura singleton sobre @actual-app/api.
 // Task 6 llama a ensureReady() antes de cada handler de tool. Semántica:
 // - Antes de nada: comprobación de ABI del módulo nativo (ver native-check.ts), una sola
-//   vez y cacheada — si el binario de better-sqlite3 no coincide con el runtime (Electron
-//   de Claude Desktop tras una actualización mayor), se lanza un error legible en vez de
-//   dejar que el síntoma (presupuesto cerrado) tape la causa real.
+//   vez y cacheada. better-sqlite3 es N-API, así que no se espera un desajuste; queda como
+//   alarma barata: si el binario no coincidiera con el runtime, se lanza un error legible
+//   en vez de dejar que el síntoma (presupuesto cerrado) tape la causa real.
 // - Primera llamada: init(...) + downloadBudget(syncId) y una sincronización inicial.
 // - Llamadas posteriores: sync() solo si expiró el TTL.
 // - Si sync() falla: las lecturas devuelven {stale:true}; las escrituras (forWrite) relanzan.
@@ -35,7 +35,8 @@ export class ActualClient {
     private api: any,
     private config: Config,
     private now: () => number = () => Date.now(),
-    // Inyectable para poder testear la comprobación de ABI con dobles. El valor por
+    // Alarma barata de ABI (better-sqlite3 es N-API: no se espera fallo). Inyectable para
+    // poder testearla con dobles. El valor por
     // defecto es inerte (siempre "ok"): la comprobación real con dlopen SOLO la cablea
     // src/index.ts al construir el cliente para producción — así ningún test existente
     // (que no la pasa) llega a disparar un dlopen real.

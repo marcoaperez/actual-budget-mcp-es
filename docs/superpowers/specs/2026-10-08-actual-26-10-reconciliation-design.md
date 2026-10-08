@@ -90,8 +90,8 @@ under both, so the script would reject a good bundle.
      `RunAsNode` fuse disabled, that command starts a second GUI instance of Claude Desktop
      instead of a Node process. The real runtime check is the maintainer installing the
      bundle and calling `get_accounts` (0.4).
-- Electron version detection (`parseElectronVersion`, `resolveElectronTarget`) stays, only to
-  log the target and to locate the runtime check. `parsePrebuildAbi` and `describeAbiCheck` and
+- Electron version detection (`parseElectronVersion`) stays, only to log the version
+  (`resolveElectronTarget` was removed). `parsePrebuildAbi` and `describeAbiCheck` and
   their tests are removed.
 - The `CLAUDE.md` note "a major Claude Desktop upgrade forces a re-bundle" is replaced by the
   N-API rationale.

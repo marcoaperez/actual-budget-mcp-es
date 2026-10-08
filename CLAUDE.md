@@ -76,7 +76,9 @@ Detalle: nota `Integracion-Superpowers-Personal` en Obsidian-Personal.
   y la subida de Claude Desktop a Electron 44.4.3 (ABI 149) lo rompió, sin prebuild posible.
   Desde `@actual-app/api` 26.10.0 viaja better-sqlite3 13, que es **N-API**: el mismo binario
   carga en cualquier Node o Electron. `scripts/bundle.ts` ya no recompila nada: verifica con
-  `nm -gU` que todo `.node` que viaja es N-API y aborta si alguno está atado a un ABI.
+  `nm -gU` que los binarios `darwin-*` son N-API (`darwin-arm64` obligatorio) y aborta si alguno
+  está atado a un ABI. Los prebuilds win32/linux viajan sin clasificar: el `nm` de macOS no lee
+  PE y el manifiesto es solo darwin.
 - **Un sync fallido puede significar presupuesto cerrado (2026-07-23)**: cuando loot-core no
   logra abrir la base local cierra el presupuesto, `downloadBudget()` resuelve igual (la API
   ignora el resultado de `load-budget`) y el `sync()` posterior revienta al leer las prefs.

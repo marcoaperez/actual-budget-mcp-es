@@ -1,15 +1,14 @@
 // native-check.ts — detecta un desajuste de ABI del módulo nativo (better-sqlite3)
-// cuando la extensión .mcpb corre bajo un Electron distinto al que se compiló.
+// cuando la extensión .mcpb corre bajo un runtime distinto al del binario.
 //
-// El bundle (scripts/bundle.ts) recompila better-sqlite3 contra el Electron de Claude
-// Desktop al empaquetar, pero eso queda fijado a esa versión: si Claude Desktop sube de
-// versión MAYOR de Electron después, el ABI cambia y el binario deja de cargar con
-// ERR_DLOPEN_FAILED. Ese fallo ocurre DENTRO de @actual-app/api (loot-core), así que lo
-// único que ve el servidor es el síntoma genérico ("no se pudo abrir el presupuesto"),
-// nunca la causa real. Esta comprobación repite el mismo truco que ya usa
-// scripts/bundle.ts para verificar el binario al empaquetar: un dlopen() manual contra
-// el propio .node, cuyo mensaje de error (si el ABI no coincide) declara los dos
-// números — el ABI para el que se compiló y el del runtime actual.
+// Desde 2.3.0 better-sqlite3 es N-API (v13), así que el mismo binario carga en cualquier
+// Node o Electron y un desajuste de ABI NO se espera. La comprobación se mantiene como
+// alarma barata (p. ej. si se colara un binario antiguo atado a un ABI concreto). Ese fallo
+// ocurriría DENTRO de @actual-app/api (loot-core) con ERR_DLOPEN_FAILED, así que lo único
+// que vería el servidor es el síntoma genérico ("no se pudo abrir el presupuesto"), nunca
+// la causa real. Esta comprobación hace un dlopen() manual contra el propio .node, cuyo
+// mensaje de error (si el ABI no coincide) declara los dos números — el ABI para el que se
+// compiló y el del runtime actual.
 //
 // Lógica pura y testeable: dlopen y la ruta se reciben por parámetro, nada de acceso a
 // fs ni al binario real desde aquí.
