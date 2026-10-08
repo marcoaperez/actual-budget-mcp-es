@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "actual-budget-mcp-es",
   "display_name": "Actual Budget",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Talk to your self-hosted Actual Budget: spending analysis, budget tracking, net worth and assisted writes.",
   "long_description": "An MCP server built for LLM consumption: transfers never pollute spending summaries, net worth includes off-budget accounts, amounts are converted server-side, and split transactions use real subtransactions. Write tools are opt-in; the delete tools (categories, category groups, rules) require explicit confirmation and archiving is offered as the non-destructive default. Requires a Mac with Apple Silicon.",
   "author": { "name": "Marco Antonio Pérez", "url": "https://github.com/marcoaperez" },
@@ -71,7 +71,7 @@
     "enable_write": {
       "type": "boolean",
       "title": "Enable write tools",
-      "description": "Off: 11 read-only tools. On: 18 more that can edit transactions, splits, budgets, categories, category groups, payees/transfers, rules and notes. Your MCP client asks for approval before each call unless you grant it standing permission.",
+      "description": "Off: 13 read-only tools. On: 20 more that can edit transactions, splits, budgets, categories, category groups, payees/transfers, reconciliation, rules and notes. Your MCP client asks for approval before each call unless you grant it standing permission.",
       "required": false,
       "default": false
     },

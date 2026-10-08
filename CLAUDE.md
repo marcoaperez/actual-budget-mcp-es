@@ -103,3 +103,6 @@ Detalle: nota `Integracion-Superpowers-Personal` en Obsidian-Personal.
   no se actualiza solo con el merge, y quedarse en una versión vieja de `@actual-app/api`
   reprodujo brevemente el bug original que este cambio corrige.
 - **2.3.0 (2026-10-08)**: `@actual-app/api` 26.10.0 y better-sqlite3 13 (N-API); el bundle ya no depende de la versión de Electron de Claude Desktop. Verificado instalándolo en Claude Desktop con Electron 44.4.3 (get_accounts contra R5). Siguiente: pieza A (conciliación), plan aparte basado en los resultados del spike de la spec 2026-10-08.
+- **2.4.0 (2026-10-08)**: conciliación (pieza A de la spec 2026-10-08): `find_transfer_issues`, `reconcile_account`,
+  `apply_reconciliation_fixes`, `mark_reconciled` y el aviso de `set_transaction_transfer` hacia cuentas sincronizadas.
+  `link` = transferencia + `mergeTransactions` (spike). Pendiente: prueba con datos reales del mantenedor.
