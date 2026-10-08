@@ -249,8 +249,14 @@ For trying the MCP against your real data without touching your server:
    bank-sync credentials removed and the password set to `actual-dev`. `-- --cold` takes a fresh
    copy instead (stops your server for a few seconds; asks you to type `detener`). The copy is
    staged in `dev/data.new` and only replaces the previous sandbox once it has been fetched and
-   validated: if the refresh fails, the previous sandbox and its Sync ID stay as they were.
-   `--cold` restarts your server even on failure, and tells you if it could not.
+   validated: if the fetch or validation fails, the previous sandbox and its Sync ID stay as they
+   were. A failure after the swap (server start or bootstrap) leaves no usable sandbox: just run it
+   again. `--cold` always tries to restart your server, even on failure, and tells you to check it
+   if it could not. After a refresh, restart Claude Code (or the `actual-dev` server) so it
+   reconnects to the new sandbox.
+
+   Needs on your machine: `docker`, `ssh`, `tar`, `sqlite3` ≥ 3.33 (for `-json`) and `lsof`; for
+   `--cold`, passwordless `sudo` on the server.
 3. Open Claude Code in this repo: the `actual-dev` MCP server (from `.mcp.json`) runs the code in
    `src/` with writes enabled, and refuses to start unless it points at the sandbox.
 4. Broke something? `npm run dev:refresh` again.

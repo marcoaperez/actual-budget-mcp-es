@@ -272,8 +272,14 @@ Para probar el MCP con tus datos reales sin tocar tu servidor:
    reciente, sin credenciales de sincronización bancaria y con la contraseña `actual-dev`.
    `-- --cold` hace en su lugar una copia en frío (para tu servidor unos segundos; te pide escribir
    `detener`). La copia se prepara en `dev/data.new` y solo sustituye al sandbox anterior cuando se
-   ha traído y validado: si el refresco falla, el sandbox anterior y su Sync ID quedan como estaban.
-   `--cold` reinicia tu servidor aunque falle, y avisa si no ha podido.
+   ha traído y validado: si falla la descarga o la validación, el sandbox anterior y su Sync ID
+   quedan como estaban. Un fallo posterior al intercambio (arranque del servidor o bootstrap) no
+   deja sandbox utilizable: vuelve a ejecutarlo. `--cold` siempre intenta reiniciar tu servidor,
+   también si falla, y te avisa de que lo compruebes si no ha podido. Tras un refresco, reinicia
+   Claude Code (o el servidor `actual-dev`) para que se reconecte al sandbox nuevo.
+
+   Requisitos en tu máquina: `docker`, `ssh`, `tar`, `sqlite3` ≥ 3.33 (para `-json`) y `lsof`; para
+   `--cold`, `sudo` sin contraseña en el servidor.
 3. Abre Claude Code en este repo: el servidor MCP `actual-dev` (de `.mcp.json`) ejecuta el código
    de `src/` con escritura activada, y se niega a arrancar si no apunta al sandbox.
 4. ¿Has roto algo? Vuelve a ejecutar `npm run dev:refresh`.
