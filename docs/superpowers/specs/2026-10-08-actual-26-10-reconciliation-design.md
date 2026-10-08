@@ -302,4 +302,41 @@ ones.
 
 ## Spike results
 
-*To be filled in by the 0.3 spike before Piece A starts.*
+Run on 2026-10-08 against `actualbudget/actual-server:26.10.0` with `@actual-app/api` 26.10.0
+(`scripts/verify/spike-link-transfer.ts`, three runs: the first hit an unbootstrapped server and
+`invalid-password`; the second showed X′ is not yet visible right after the update; the third,
+with polling, is the one quoted).
+
+- **Mechanism A (transfer + merge):** works — survivor is **Y** (the bank leg of account B,
+  not X′), keeps `imported_id` (`SpikeA-y`): yes, linked both ways: yes (X `transfer_id` = Y and
+  Y `transfer_id` = X, X keeps `SpikeA-x`), balances: ok (`balanceA = -10000`, `balanceB =
+  10000`, one live row per account, no leftovers). Merge order does not matter: `[Y, X′]` gave
+  the same result (survivor Y, both `imported_id` kept, balances ok). Timing caveat: right after
+  `updateTransaction(X, { payee: transferPayeeOf(B) })` X′ is **not yet visible** (first run read
+  account B immediately and found no X′, so the merge was skipped); polling found it after
+  ≤ 250 ms (`waitedMs: 250`). `link` must poll for X′ before merging. A second client that
+  downloads the budget sees the same linked pair.
+- **Mechanism B (direct `transfer_id`):** does not work — it throws nothing (`error: null`) but
+  **destroys the bank leg Y**: account B ends with no live row carrying `SpikeB-y`; Actual
+  generates a fresh counterpart in B with `imported_id: null`, linked to X. The next bank sync
+  would re-import `SpikeB-y` as a duplicate. Rejected.
+- **Chosen for `link`:** A, because it is the only one that leaves both bank legs alive, linked
+  both ways, each with its own `imported_id`.
+- **`mergeTransactions` survivor rule** (source: `core/src/server/transactions/merge.ts`,
+  `determineKeepDrop`): keep the one with `imported_id` if only one has it; else the one with
+  `imported_payee` if only one has it; else the earlier date (ties: the second argument).
+  The survivor keeps its own id and `imported_id`; `payee`, `category`, `notes`, `cleared`,
+  `reconciled`, `schedule` fall back to the dropped row's value when the survivor's is empty.
+  With a transfer involved, the survivor gets `transfer_id` = the other leg and the transfer
+  payee of the transfer leg; for on-budget accounts its category is cleared. **Caveat:** if both
+  rows carry `imported_id`, the date rule decides, so `link` must only merge X′ (no
+  `imported_id`) with Y.
+- **`getAccountBalance` cutoff:** inclusive of the cutoff day and blind to the time of day.
+  The server runs `date <= dayFromDate(cutoff)`. Transaction dated 2026-09-15: cutoff
+  `2026-09-15T00:00:00` -> 500, `2026-09-15T23:59:59` -> 500, `2026-09-14T23:59:59` -> 0,
+  `2026-09-14T12:00:00` -> 0, no cutoff -> 500. "Close of day D" = `new Date('D')` of that day
+  (local date); to exclude D use D-1. (`new Date('D' + 'T00:00:00Z')` also gave 500; the day is
+  taken in local time, so avoid UTC strings near midnight.)
+- **Second client after sync:** consistent. A fresh client downloading the budget after
+  `sync()` sees the same rows for mechanism A (both legs, linked both ways, `imported_id`s
+  intact) and the same state for B (bank leg Y missing, generated counterpart present).
