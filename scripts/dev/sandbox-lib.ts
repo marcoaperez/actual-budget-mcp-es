@@ -46,7 +46,7 @@ export function buildFetch(mode: 'backup' | 'cold', env: Record<string, string>)
   const base = dir.slice(dir.lastIndexOf('/') + 1);
   return {
     ssh: env.DEV_SOURCE_SSH,
-    remote: `docker stop ${env.DEV_SOURCE_CONTAINER} >/dev/null && sudo tar -czf - -C ${parent} ${base} ; s=$?; docker start ${env.DEV_SOURCE_CONTAINER} >/dev/null; exit $s`,
+    remote: `docker stop ${env.DEV_SOURCE_CONTAINER} >/dev/null && sudo tar -czf - -C ${parent} ${base} ; s=$?; docker start ${env.DEV_SOURCE_CONTAINER} >/dev/null || s=97; exit $s`,
     stripComponents: 1,
   };
 }

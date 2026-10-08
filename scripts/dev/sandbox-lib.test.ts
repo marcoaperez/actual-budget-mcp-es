@@ -44,7 +44,7 @@ describe('buildFetch', () => {
   });
   it('cold: stops the container, tars the data dir, always starts it again', () => {
     const f = buildFetch('cold', env);
-    expect(f.remote).toBe('docker stop actual >/dev/null && sudo tar -czf - -C /opt/x/actual data ; s=$?; docker start actual >/dev/null; exit $s');
+    expect(f.remote).toBe('docker stop actual >/dev/null && sudo tar -czf - -C /opt/x/actual data ; s=$?; docker start actual >/dev/null || s=97; exit $s');
     expect(f.stripComponents).toBe(1);
   });
 });

@@ -23,6 +23,7 @@ const cold = process.argv.includes('--cold');
 
 // Estado para la limpieza en caso de fallo o Ctrl+C.
 let coldRecovery: { ssh: string; container: string } | null = null;
+let removedOld = false; // true cuando ya se ha borrado dev/data (no queda sandbox anterior)
 let swapped = false; // true cuando dev/data ya es la copia nueva
 
 function cleanup() {
@@ -43,7 +44,9 @@ const fail = (msg: string): never => {
   console.error(
     swapped
       ? '  Volver a ejecutar npm run dev:refresh es seguro.'
-      : '  El sandbox anterior (si lo había) no se ha tocado; volver a ejecutar npm run dev:refresh es seguro.',
+      : removedOld
+        ? '  Se eliminó el sandbox anterior y no queda ninguna copia: ejecuta de nuevo npm run dev:refresh.'
+        : '  El sandbox anterior (si lo había) no se ha tocado; volver a ejecutar npm run dev:refresh es seguro.',
   );
   process.exit(1);
 };
@@ -90,10 +93,7 @@ async function main() {
     coldRecovery = { ssh: env.DEV_SOURCE_SSH, container: env.DEV_SOURCE_CONTAINER };
   }
 
-  // Nunca dejar un Sync ID viejo: solo se escribe el nuevo cuando todo ha ido bien.
-  envText = setEnvValue(envText, 'ACTUAL_SYNC_ID', '');
-  fs.writeFileSync(ENV_PATH, envText);
-
+  // ACTUAL_SYNC_ID solo se escribe al final, tras el intercambio y el bootstrap correctos.
   // 1) Traer la copia a dev/data.new sin tocar el sandbox actual.
   fs.rmSync(STAGING, { recursive: true, force: true });
   fs.mkdirSync(STAGING, { recursive: true });
@@ -109,7 +109,8 @@ async function main() {
     const done = (who: string) => (code: number | null) => {
       codes[who] = code;
       if (!('ssh' in codes && 'tar' in codes)) return;
-      if (codes.ssh !== 0) reject(new Error(`ssh terminó con ${codes.ssh}`));
+      if (codes.ssh === 97) reject(new Error(`El contenedor ${env.DEV_SOURCE_CONTAINER} de producción NO se reinició (docker start falló): compruébalo ahora en ${f.ssh}.`));
+      else if (codes.ssh !== 0) reject(new Error(`ssh terminó con ${codes.ssh}`));
       else if (codes.tar !== 0) reject(new Error(`tar terminó con ${codes.tar}`));
       else resolve();
     };
@@ -138,6 +139,7 @@ async function main() {
   // 3) Intercambio: ahora sí se para el sandbox y se sustituye dev/data.
   console.log('→ Parando el sandbox y sustituyendo dev/data…');
   docker('down');
+  removedOld = true;
   fs.rmSync(DATA, { recursive: true, force: true });
   fs.renameSync(STAGING, DATA);
   swapped = true;
