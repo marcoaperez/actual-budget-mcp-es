@@ -44,7 +44,7 @@ Actual Budget server you can reach. On Intel Macs, Windows or Linux, use
 With the checkbox off you get the 13 read-only tools. Turn it on (Settings → Extensions →
 this extension → configure) to add the 20 write tools: editing and categorizing transactions,
 real splits, scheduled transactions, budget assignment, category notes, managing category
-groups/categories, payees/transfers and automation rules. Claude Desktop asks for your
+groups/categories, payees/transfers, bank reconciliation (link/merge duplicates, mark reconciled) and automation rules. Claude Desktop asks for your
 approval before each call unless you grant it standing permission. The classification tools
 (categories, category groups, rules, `set_transaction_transfer`) sync to the server after
 every write — the 8 write tools from earlier versions don't do this themselves, they rely on
@@ -127,7 +127,7 @@ The first three variables are required; the rest have defaults.
 | `LOCALE` | No | `en-US` | Locale for formatting amounts and dates (e.g. `es-ES`) |
 | `CURRENCY` | No | `USD` | 3-letter ISO currency code (e.g. `EUR`) |
 | `SYNC_TTL_SECONDS` | No | `60` | Seconds the sync is cached before re-syncing |
-| `ENABLE_WRITE` | No | `false` | Enables the 20 write tools (categorize, splits, schedules, budget, notes, category groups/categories, payees/transfers, rules) |
+| `ENABLE_WRITE` | No | `false` | Enables the 20 write tools (categorize, splits, schedules, budget, notes, category groups/categories, payees/transfers, rules, reconciliation) |
 | `MESSAGES_LANG` | No | `es` | Language of the server's error messages: `es` or `en` |
 
 ## Tools

@@ -21,7 +21,10 @@ export const tool: ToolDef = {
   description:
     'Compare an account with the balance the bank shows at the close of a date. Returns the Actual balance at that ' +
     'date, the difference (bank − Actual), the already reconciled balance, and when they differ the proposed fixes ' +
-    'touching this account (see find_transfer_issues) plus transactions whose amount alone explains the gap. Writes nothing.',
+    'touching this account (see find_transfer_issues) plus transactions whose amount alone explains the gap. ' +
+    `Proposals and hints only cover about ${DEFAULT_RANGE_DAYS} days before date. ` +
+    'link and create_transfer between two accounts on the same side of the budget (both on-budget or both off-budget) clear the category ' +
+    'of both legs, as Actual does; proposals flag it with clears_category. Writes nothing.',
   readOnly: true,
   inputSchema: input,
   handler: async (raw, { api, config }) => {
@@ -51,8 +54,9 @@ export const tool: ToolDef = {
     if (difference === 0) return { ...base, next_step: m.reconcileMatchesNext, proposals: [], hints: [] };
 
     const detectInput = await loadDetectInput(api, {
-      start: addDays(a.date, -(DEFAULT_RANGE_DAYS + LINK_MAX_DAYS)),
-      end: addDays(a.date, LINK_MAX_DAYS),
+      // Doble margen de enlace: ver también a las candidatas de las candidatas en los bordes.
+      start: addDays(a.date, -(DEFAULT_RANGE_DAYS + 2 * LINK_MAX_DAYS)),
+      end: addDays(a.date, 2 * LINK_MAX_DAYS),
     });
     const proposals = detectAll(detectInput, m).filter((p) =>
       p.transactions.some((t) => t.account === account.id && t.date <= a.date),

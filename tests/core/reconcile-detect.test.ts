@@ -141,3 +141,43 @@ describe('detectAll', () => {
     expect(p.map((q) => q.operation.type)).toEqual(['merge']);
   });
 });
+
+describe('clears_category', () => {
+  const accs = [
+    acc({ id: 'A', name: 'BBVA', bankSynced: true }),
+    acc({ id: 'B', name: 'ING', bankSynced: true }),
+    acc({ id: 'INV', name: 'Inversión', offbudget: true }),
+    acc({ id: 'CASH', name: 'Efectivo' }),
+  ];
+  it('link entre cuentas del mismo lado con alguna categoría la marca; sin categoría o con lados distintos no', () => {
+    const same = detectLinks([tx({ id: 'x', category: 'c1' }), tx({ id: 'y', account: 'B', amount: 100 })], m, accs);
+    expect(same[0].clears_category).toBe(true);
+    const none = detectLinks([tx({ id: 'x' }), tx({ id: 'y', account: 'B', amount: 100 })], m, accs);
+    expect(none[0].clears_category).toBe(false);
+    const sides = detectLinks([tx({ id: 'x', category: 'c1' }), tx({ id: 'y', account: 'INV', amount: 100 })], m, accs);
+    expect(sides[0].clears_category).toBe(false);
+    const bothOff = detectLinks(
+      [tx({ id: 'x', account: 'INV', category: 'c1' }), tx({ id: 'y', account: 'INV2', amount: 100 })],
+      m, [...accs, acc({ id: 'INV2', name: 'Otra inv', offbudget: true })],
+    );
+    expect(bothOff[0].clears_category).toBe(true);
+  });
+  it('create_transfer lo marca si origen y destino están del mismo lado y la fila tiene categoría', () => {
+    const base = { accounts: accs, history: new Map([['cajero', new Set(['CASH'])]]) };
+    const withCat = detectCreateTransfers(input({ ...base, rows: [tx({ id: 'x', imported_id: 'i', imported_payee: 'CAJERO', category: 'c1' })] }), m, new Set());
+    expect(withCat[0].clears_category).toBe(true);
+    const noCat = detectCreateTransfers(input({ ...base, rows: [tx({ id: 'x', imported_id: 'i', imported_payee: 'CAJERO' })] }), m, new Set());
+    expect(noCat[0].clears_category).toBe(false);
+  });
+  it('merge nunca limpia la categoría', () => {
+    const p = detectMerges([tx({ id: 'imp', imported_id: 'i', category: 'c1' }), tx({ id: 'man', category: 'c2' })], m);
+    expect(p[0].clears_category).toBe(false);
+  });
+  it('detectAll lo propaga a la presentación', async () => {
+    const { presentProposal } = await import('../../src/core/reconcile-model.js');
+    const [p] = detectAll(input({ rows: [tx({ id: 'x', category: 'c1' }), tx({ id: 'y', account: 'B', amount: 100 })], accounts: accs }), m);
+    const out = presentProposal(p, new Map(), 'es-ES', 'EUR');
+    expect(out.clears_category).toBe(true);
+    expect(out.transactions[0].category).toBe('c1');
+  });
+});

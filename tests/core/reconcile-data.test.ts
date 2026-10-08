@@ -37,8 +37,20 @@ describe('toTxRow y loadTxRows', () => {
     const r = toTxRow({ id: 'x', account: 'a', date: '2026-09-15', amount: 5, reconciled: 1, cleared: 0 });
     expect(r).toEqual({
       id: 'x', account: 'a', date: '2026-09-15', amount: 5, imported_id: null, transfer_id: null,
-      reconciled: true, cleared: false, payee: null, imported_payee: null, notes: null,
+      reconciled: true, cleared: false, payee: null, imported_payee: null, notes: null, category: null,
     });
+  });
+  it('normaliza las cadenas vacías a null (imported_id, imported_payee, category)', () => {
+    const r = toTxRow({ id: 'x', account: 'a', date: '2026-09-15', amount: 5, imported_id: '', imported_payee: '', category: '' });
+    expect(r.imported_id).toBeNull();
+    expect(r.imported_payee).toBeNull();
+    expect(r.category).toBeNull();
+    expect(toTxRow({ id: 'x', account: 'a', date: '2026-09-15', amount: 5, category: 'c1' }).category).toBe('c1');
+  });
+  it('loadTxRows pide la categoría', async () => {
+    const api = mockApi({ runQuery: async () => ({ data: [] }) });
+    await loadTxRows(api, { start: '2026-09-01', end: '2026-09-30' });
+    expect((api.q as any).mock.results[0].value.calls.select[0]).toContain('category');
   });
   it('lee el rango con splits all y descarta padres e hijos de split', async () => {
     const api = mockApi({
@@ -125,6 +137,8 @@ describe('summarizeTx', () => {
   it('usa el nombre del beneficiario, o el importado si no lo hay, y convierte el importe', () => {
     const s = summarizeTx(row({ id: 'x', payee: 'p1', imported_id: 'i', amount: -1234 }), new Map([['p1', 'Mercadona']]), 'es-ES', 'EUR');
     expect(s).toMatchObject({ id: 'x', account_id: 'a', payee: 'Mercadona', imported: true, amount: -12.34 });
+    expect(summarizeTx(row({ category: 'c1' }), new Map(), 'es-ES', 'EUR').category).toBe('c1');
+    expect(summarizeTx(row({}), new Map(), 'es-ES', 'EUR').category).toBeNull();
     expect(summarizeTx(row({ imported_payee: 'BIZUM' }), new Map(), 'es-ES', 'EUR').payee).toBe('BIZUM');
   });
 });

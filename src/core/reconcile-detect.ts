@@ -1,7 +1,7 @@
 // reconcile-detect.ts — reglas de detección de la conciliación (spec 2026-10-08, § Detection
 // rules). Puras: reciben filas ya leídas y devuelven propuestas; nunca escriben.
 import type { Messages } from './messages.js';
-import type { AccountInfo, DetectInput, Proposal, TxRow } from './reconcile-model.js';
+import { clearsCategory, type AccountInfo, type DetectInput, type Proposal, type TxRow } from './reconcile-model.js';
 import { daysApart, normalizeText, syncedAccountIds } from './reconcile-data.js';
 
 export const LINK_MAX_DAYS = 3;
@@ -25,7 +25,7 @@ function linkCandidates(rows: TxRow[]): Map<string, TxRow[]> {
   return out;
 }
 
-export function detectLinks(rows: TxRow[], m: Messages): Proposal[] {
+export function detectLinks(rows: TxRow[], m: Messages, accounts: AccountInfo[] = []): Proposal[] {
   const candidates = linkCandidates(rows);
   const byId = new Map(rows.map((r) => [r.id, r]));
   const seen = new Set<string>();
@@ -43,6 +43,7 @@ export function detectLinks(rows: TxRow[], m: Messages): Proposal[] {
         confidence: unique && days <= LINK_SURE_MAX_DAYS ? 'alta' : 'dudosa',
         reason: m.reasonLink(days, unique),
         transactions: [x, y],
+        clears_category: clearsCategory([x, y], [x.account, y.account], accounts),
       });
     }
   }
@@ -69,6 +70,7 @@ export function detectMerges(rows: TxRow[], m: Messages): Proposal[] {
       confidence: unique && days === 0 ? 'alta' : 'dudosa',
       reason: m.reasonMerge(days, unique),
       transactions: [k, d],
+      clears_category: false,
     };
   });
 }
@@ -94,6 +96,7 @@ export function detectCreateTransfers(input: DetectInput, m: Messages, linkable:
           confidence: rawHistory.length === 1 && fromHistory.length === 1 ? 'alta' : 'dudosa',
           reason: m.reasonCreateFromHistory(target.name),
           transactions: [x],
+          clears_category: clearsCategory([x], [x.account, target.id], input.accounts),
         });
       }
       continue;
@@ -107,6 +110,7 @@ export function detectCreateTransfers(input: DetectInput, m: Messages, linkable:
         confidence: 'dudosa',
         reason: m.reasonCreateFromName(target.name),
         transactions: [x],
+        clears_category: clearsCategory([x], [x.account, target.id], input.accounts),
       });
     }
   }
@@ -121,7 +125,7 @@ export function detectAll(input: DetectInput, m: Messages): Proposal[] {
   const inMerge = new Set(
     merges.flatMap((p) => (p.operation.type === 'merge' ? [p.operation.keep, p.operation.drop] : [])),
   );
-  const links = detectLinks(input.rows.filter((r) => !inMerge.has(r.id)), m);
+  const links = detectLinks(input.rows.filter((r) => !inMerge.has(r.id)), m, input.accounts);
   const excluded = new Set([...links.flatMap((p) => p.transactions.map((t) => t.id)), ...inMerge]);
   return [...links, ...merges, ...detectCreateTransfers(input, m, excluded)].sort(
     (p, q) => CONFIDENCE_ORDER[p.confidence] - CONFIDENCE_ORDER[q.confidence],

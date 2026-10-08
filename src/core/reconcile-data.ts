@@ -6,7 +6,7 @@ import type { AccountInfo, DetectInput, TxRow } from './reconcile-model.js';
 
 const TX_FIELDS = [
   'id', 'account', 'date', 'amount', 'imported_id', 'transfer_id', 'reconciled', 'cleared',
-  'payee', 'imported_payee', 'notes', 'is_parent', 'is_child',
+  'payee', 'imported_payee', 'notes', 'category', 'is_parent', 'is_child',
 ];
 const MS_PER_DAY = 86_400_000;
 
@@ -41,13 +41,14 @@ export function toTxRow(r: any): TxRow {
     account: r.account,
     date: r.date,
     amount: r.amount ?? 0,
-    imported_id: r.imported_id ?? null,
+    imported_id: r.imported_id || null,
     transfer_id: r.transfer_id ?? null,
     reconciled: !!r.reconciled,
     cleared: !!r.cleared,
     payee: r.payee ?? null,
-    imported_payee: r.imported_payee ?? null,
+    imported_payee: r.imported_payee || null,
     notes: r.notes ?? null,
+    category: r.category || null,
   };
 }
 

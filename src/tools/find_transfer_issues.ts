@@ -22,6 +22,8 @@ export const tool: ToolDef = {
     'link (two existing opposite transactions in two accounts that should be one transfer), ' +
     'merge (a bank-imported transaction duplicated by a non-imported one in the same account) and ' +
     'create_transfer (a bank transaction that should be a transfer to a manually kept account). ' +
+    'link and create_transfer between two accounts on the same side of the budget (both on-budget or both off-budget) clear the category ' +
+    'of both legs, as Actual does; proposals flag it with clears_category. ' +
     'Writes nothing: pass the accepted operations to apply_reconciliation_fixes.',
   readOnly: true,
   inputSchema: input,
@@ -33,7 +35,9 @@ export const tool: ToolDef = {
 
     if (start > end) throw new Error(m.startAfterEnd(start, end));
 
-    const detectInput = await loadDetectInput(api, { start: addDays(start, -LINK_MAX_DAYS), end: addDays(end, LINK_MAX_DAYS) });
+    // Doble margen: una pata junto al borde necesita ver también a las candidatas de SU candidata.
+    const pad = 2 * LINK_MAX_DAYS;
+    const detectInput = await loadDetectInput(api, { start: addDays(start, -pad), end: addDays(end, pad) });
     for (const id of a.account_ids ?? []) {
       if (!detectInput.accounts.some((acc) => acc.id === id)) throw new Error(m.accountNotFound(id));
     }

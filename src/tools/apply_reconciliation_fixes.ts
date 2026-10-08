@@ -25,7 +25,8 @@ export const tool: ToolDef = {
     'Each operation is revalidated against current data first; one that no longer fits is skipped (omitida) with the ' +
     'reason and the rest still run. Never touches reconciled transactions and never loses a bank import id. ' +
     `At most ${MAX_OPERATIONS} operations per call. ` +
-    'As in Actual, turning on-budget transactions into a transfer clears their category.',
+    'As in Actual, link and create_transfer between two accounts on the same side of the budget (both on-budget or both off-budget) ' +
+    'clear the category of both legs (proposals flag it with clears_category); merge does not.',
   readOnly: false,
   annotations: { destructiveHint: true, idempotentHint: false },
   inputSchema: input,

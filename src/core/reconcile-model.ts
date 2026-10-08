@@ -27,6 +27,8 @@ export interface TxRow {
   payee: string | null;
   imported_payee: string | null;
   notes: string | null;
+  /** id de categoría (null si no tiene). */
+  category: string | null;
 }
 
 export interface AccountInfo {
@@ -43,6 +45,8 @@ export interface Proposal {
   confidence: Confidence;
   reason: string;
   transactions: TxRow[];
+  /** Convertir en transferencia entre cuentas del mismo lado del presupuesto limpia la categoría de ambas patas (Actual). */
+  clears_category: boolean;
 }
 
 export interface DetectInput {
@@ -60,6 +64,7 @@ export function summarizeTx(row: TxRow, payeeNames: Map<string, string>, locale:
     account_id: row.account,
     date: row.date,
     payee: name ?? row.imported_payee ?? null,
+    category: row.category,
     imported: row.imported_id !== null,
     ...moneyFields(row.amount, locale, currency),
   };
@@ -70,6 +75,18 @@ export function presentProposal(p: Proposal, payeeNames: Map<string, string>, lo
     operation: p.operation,
     confidence: p.confidence,
     reason: p.reason,
+    clears_category: p.clears_category,
     transactions: p.transactions.map((t) => summarizeTx(t, payeeNames, locale, currency)),
   };
+}
+
+/**
+ * ¿Hacer transferencia entre estas cuentas borrará categorías que hoy existen? Actual limpia la
+ * categoría de ambas patas cuando las dos cuentas están del mismo lado del presupuesto
+ * (ambas dentro o ambas fuera). Si no se conoce alguna cuenta, no se afirma nada.
+ */
+export function clearsCategory(rows: TxRow[], accountIds: string[], accounts: AccountInfo[]): boolean {
+  const sides = accountIds.map((id) => accounts.find((a) => a.id === id)?.offbudget);
+  if (sides.some((s) => s === undefined) || new Set(sides).size > 1) return false;
+  return rows.some((r) => r.category !== null);
 }

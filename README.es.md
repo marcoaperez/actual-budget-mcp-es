@@ -35,7 +35,7 @@ Actual Budget self-hosted al que puedas acceder. En Macs Intel, Windows o Linux,
 Con la casilla desactivada tienes las 13 tools de solo lectura. Actívala (Settings →
 Extensions → esta extensión → configurar) para añadir las 20 tools de escritura: editar y
 categorizar movimientos, splits reales, repetitivos, asignación de presupuesto, notas de
-categoría, gestión de grupos de categorías/categorías, beneficiarios/transferencias y reglas
+categoría, gestión de grupos de categorías/categorías, beneficiarios/transferencias, conciliación bancaria (enlazar/fusionar duplicados, marcar conciliado) y reglas
 de automatización. Claude Desktop pide tu aprobación antes de cada llamada salvo que le
 concedas permiso permanente. Las tools de clasificación (categorías, grupos de categorías,
 reglas, `set_transaction_transfer`) sincronizan con el servidor tras cada escritura — las 8
@@ -126,7 +126,7 @@ Las tres primeras son obligatorias; el resto tienen valores por defecto.
 | `LOCALE` | No | `en-US` | Locale para formatear importes y fechas (ej. `es-ES`) |
 | `CURRENCY` | No | `USD` | Código ISO de moneda de 3 letras (ej. `EUR`) |
 | `SYNC_TTL_SECONDS` | No | `60` | Segundos que se cachea el sync antes de volver a sincronizar |
-| `ENABLE_WRITE` | No | `false` | Habilita las 20 tools de escritura (categorizar, splits, schedules, presupuesto, notas, grupos de categorías/categorías, beneficiarios/transferencias, reglas) |
+| `ENABLE_WRITE` | No | `false` | Habilita las 20 tools de escritura (categorizar, splits, schedules, presupuesto, notas, grupos de categorías/categorías, beneficiarios/transferencias, reglas, conciliación) |
 | `MESSAGES_LANG` | No | `es` | Idioma de los mensajes de error del servidor: `es` o `en` |
 
 ## Herramientas disponibles

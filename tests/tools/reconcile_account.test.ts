@@ -55,6 +55,14 @@ describe('reconcile_account', () => {
     expect(r.hints[0].note).toBeTruthy();
   });
 
+  it('lee con margen de 2 × LINK_MAX_DAYS y avisa en la descripción de la ventana de 90 días', async () => {
+    const api = apiWith({ balance: 97500, rows: [] });
+    await tool.handler({ account: A, bank_balance: 1000, date: '2026-09-30' }, { api, config: testConfig });
+    const q = (api.q as any).mock.results.map((r: any) => r.value).find((v: any) => v.calls.filter?.[0]?.date?.$gte);
+    expect(q.calls.filter[0]).toEqual({ date: { $gte: '2026-06-26', $lte: '2026-10-06' } });
+    expect(tool.description).toMatch(/90 days before date/);
+  });
+
   it('falla con un mensaje útil si la cuenta no existe', async () => {
     await expect(tool.handler({ account: 'Revolut', bank_balance: 1, date: '2026-09-30' }, { api: apiWith({ balance: 0 }), config: testConfig }))
       .rejects.toThrow(/Revolut.*BBVA Nómina/);
