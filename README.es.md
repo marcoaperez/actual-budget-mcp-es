@@ -32,7 +32,7 @@ Actual Budget self-hosted al que puedas acceder. En Macs Intel, Windows o Linux,
 
 ### Activar el acceso de escritura
 
-Con la casilla desactivada tienes las 11 tools de solo lectura. Actívala (Settings →
+Con la casilla desactivada tienes las 12 tools de solo lectura. Actívala (Settings →
 Extensions → esta extensión → configurar) para añadir las 18 tools de escritura: editar y
 categorizar movimientos, splits reales, repetitivos, asignación de presupuesto, notas de
 categoría, gestión de grupos de categorías/categorías, beneficiarios/transferencias y reglas
@@ -131,7 +131,7 @@ Las tres primeras son obligatorias; el resto tienen valores por defecto.
 
 ## Herramientas disponibles
 
-El servidor expone 11 herramientas de solo lectura:
+El servidor expone 12 herramientas de solo lectura:
 
 | Herramienta | Descripción |
 |---|---|
@@ -146,6 +146,7 @@ El servidor expone 11 herramientas de solo lectura:
 | `get_budget_averages` | Media, mediana y máximo de gasto por categoría en los últimos N meses completos — insumo para preparar el presupuesto |
 | `get_schedules` | Repetitivos configurados en Actual (nombre, próxima fecha, importe) |
 | `get_rules` | Reglas de automatización con sus IDs; las reglas se ejecutan al importar movimientos y son cómo los movimientos recurrentes se autoclasifican |
+| `find_transfer_issues` | Revisa un rango de fechas en busca de transferencias sin enlazar, movimientos del banco duplicados por otros manuales y movimientos del banco que deberían ser transferencias a una cuenta manual; propone cada arreglo con su confianza (`alta`/`dudosa`) y no escribe nada |
 
 ## Herramientas de escritura
 

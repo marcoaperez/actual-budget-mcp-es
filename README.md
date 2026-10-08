@@ -41,7 +41,7 @@ Actual Budget server you can reach. On Intel Macs, Windows or Linux, use
 
 ### Turning on write access
 
-With the checkbox off you get the 11 read-only tools. Turn it on (Settings → Extensions →
+With the checkbox off you get the 12 read-only tools. Turn it on (Settings → Extensions →
 this extension → configure) to add the 18 write tools: editing and categorizing transactions,
 real splits, scheduled transactions, budget assignment, category notes, managing category
 groups/categories, payees/transfers and automation rules. Claude Desktop asks for your
@@ -149,6 +149,7 @@ Always available.
 | `get_budget_averages` | Mean, median and max spending per category over the last N full months — input for preparing the budget |
 | `get_schedules` | Scheduled/recurring transactions configured in Actual (name, next date, amount) |
 | `get_rules` | Automation rules with their IDs; rules run on imported transactions and are how recurring movements classify themselves |
+| `find_transfer_issues` | Review a date range for transfers that are not linked, bank-imported transactions duplicated by manual ones, and bank transactions that should be transfers to a manual account; proposes each fix with a confidence (`alta`/`dudosa`) and writes nothing |
 
 ### Write tools (18)
 
