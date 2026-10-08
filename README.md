@@ -239,6 +239,22 @@ npm run smoke   # manual check against the real Actual server (requires .env; no
 
 The server talks over stdio (stdin/stdout), so running it manually shows no interactive output — logs go to stderr.
 
+### Development sandbox (a copy of your own budget)
+
+For trying the MCP against your real data without touching your server:
+
+1. `cp dev/.env.example dev/.env` and fill in where the copy comes from (an SSH alias and the path
+   of your nightly backups of Actual's data dir) and the budget name. `dev/.env` is git-ignored.
+2. `npm run dev:refresh` — rebuilds a local Actual on `127.0.0.1:5007` from the newest backup, with
+   bank-sync credentials removed and the password set to `actual-dev`. `-- --cold` takes a fresh
+   copy instead (stops your server for a few seconds; asks you to type `detener`). The copy is
+   staged in `dev/data.new` and only replaces the previous sandbox once it has been fetched and
+   validated: if the refresh fails, the previous sandbox and its Sync ID stay as they were.
+   `--cold` restarts your server even on failure, and tells you if it could not.
+3. Open Claude Code in this repo: the `actual-dev` MCP server (from `.mcp.json`) runs the code in
+   `src/` with writes enabled, and refuses to start unless it points at the sandbox.
+4. Broke something? `npm run dev:refresh` again.
+
 ### Adding a new tool
 
 1. Create a file in `src/tools/my_new_tool.ts`

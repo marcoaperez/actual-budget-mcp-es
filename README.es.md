@@ -261,6 +261,23 @@ npm run smoke   # comprobación manual contra el servidor Actual real (requiere 
 
 El smoke imprime el número de cuentas y el patrimonio neto para contrastarlos con la UI de Actual. No forma parte de CI.
 
+### Sandbox de desarrollo (una copia de tu propio presupuesto)
+
+Para probar el MCP con tus datos reales sin tocar tu servidor:
+
+1. `cp dev/.env.example dev/.env` y rellena de dónde sale la copia (un alias SSH y la ruta de tus
+   backups nocturnos del directorio de datos de Actual) y el nombre del presupuesto. `dev/.env`
+   está en `.gitignore`.
+2. `npm run dev:refresh` — reconstruye un Actual local en `127.0.0.1:5007` a partir del backup más
+   reciente, sin credenciales de sincronización bancaria y con la contraseña `actual-dev`.
+   `-- --cold` hace en su lugar una copia en frío (para tu servidor unos segundos; te pide escribir
+   `detener`). La copia se prepara en `dev/data.new` y solo sustituye al sandbox anterior cuando se
+   ha traído y validado: si el refresco falla, el sandbox anterior y su Sync ID quedan como estaban.
+   `--cold` reinicia tu servidor aunque falle, y avisa si no ha podido.
+3. Abre Claude Code en este repo: el servidor MCP `actual-dev` (de `.mcp.json`) ejecuta el código
+   de `src/` con escritura activada, y se niega a arrancar si no apunta al sandbox.
+4. ¿Has roto algo? Vuelve a ejecutar `npm run dev:refresh`.
+
 ### Añadir una nueva herramienta
 
 1. Crea un archivo en `src/tools/mi_nueva_herramienta.ts`

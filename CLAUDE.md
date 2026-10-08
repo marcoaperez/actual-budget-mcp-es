@@ -106,3 +106,4 @@ Detalle: nota `Integracion-Superpowers-Personal` en Obsidian-Personal.
 - **2.4.0 (2026-10-08)**: conciliación (pieza A de la spec 2026-10-08): `find_transfer_issues`, `reconcile_account`,
   `apply_reconciliation_fixes`, `mark_reconciled` y el aviso de `set_transaction_transfer` hacia cuentas sincronizadas.
   `link` = transferencia + `mergeTransactions` (spike). Pendiente: prueba con datos reales del mantenedor.
+- **Sandbox de desarrollo (2026-10-08)**: `npm run dev:refresh` + MCP `actual-dev` en Claude Code (solo `localhost:5007`). Spec `docs/superpowers/specs/2026-10-08-dev-sandbox-design.md`.
