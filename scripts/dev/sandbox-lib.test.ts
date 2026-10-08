@@ -1,0 +1,108 @@
+import { describe, it, expect } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import {
+  NEUTRALISE_SQL, SOURCE_KEYS_BACKUP, parseEnvFile, setEnvValue, missingKeys, buildFetch, findBudget,
+  portHolderIsSandbox,
+} from './sandbox-lib.js';
+
+describe('env file', () => {
+  const text = '# comentario\nDEV_SOURCE_SSH=host # alias\nDEV_BUDGET_NAME=Personal\nACTUAL_SYNC_ID=\n';
+  it('parses KEY=value, ignores comments and trailing comments, keeps empty values', () => {
+    expect(parseEnvFile(text)).toEqual({ DEV_SOURCE_SSH: 'host', DEV_BUDGET_NAME: 'Personal', ACTUAL_SYNC_ID: '' });
+  });
+  it('setEnvValue replaces an existing key and keeps every other line', () => {
+    const out = setEnvValue(text, 'ACTUAL_SYNC_ID', 'abc');
+    expect(out).toContain('ACTUAL_SYNC_ID=abc');
+    expect(out).toContain('# comentario');
+    expect(out).toContain('DEV_SOURCE_SSH=host # alias');
+  });
+  it('setEnvValue appends a missing key', () => {
+    expect(setEnvValue('A=1\n', 'B', '2')).toBe('A=1\nB=2\n');
+  });
+  it('missingKeys lists absent or empty keys', () => {
+    expect(missingKeys({ DEV_SOURCE_SSH: 'h', DEV_BUDGET_NAME: '' }, SOURCE_KEYS_BACKUP)).toEqual([
+      'DEV_SOURCE_BACKUP_GLOB', 'DEV_SOURCE_TAR_MEMBER_PREFIX', 'DEV_BUDGET_NAME',
+    ]);
+  });
+});
+
+describe('buildFetch', () => {
+  const env = {
+    DEV_SOURCE_SSH: 'prod', DEV_SOURCE_BACKUP_GLOB: '/backups/*/actual.tar.gz',
+    DEV_SOURCE_TAR_MEMBER_PREFIX: 'opt/x/actual/data/', DEV_SOURCE_DATA_DIR: '/opt/x/actual/data',
+    DEV_SOURCE_CONTAINER: 'actual', DEV_BUDGET_NAME: 'Personal',
+  };
+  it('backup: streams the newest file by mtime, read-only, and strips the member prefix', () => {
+    const f = buildFetch('backup', env);
+    expect(f.ssh).toBe('prod');
+    expect(f.remote).toBe('cat "$(ls -1t /backups/*/actual.tar.gz | head -1)"');
+    expect(f.stripComponents).toBe(4);
+  });
+  it('cold: stops the container, tars the data dir, always starts it again', () => {
+    const f = buildFetch('cold', env);
+    expect(f.remote).toBe('docker stop actual >/dev/null; sudo tar -czf - -C /opt/x/actual data; docker start actual >/dev/null');
+    expect(f.stripComponents).toBe(1);
+  });
+});
+
+describe('findBudget', () => {
+  const rows = [
+    { name: 'Personal', group_id: 'g-1', deleted: 0 },
+    { name: 'Taiko', group_id: 'g-2', deleted: 0 },
+    { name: 'Viejo', group_id: 'g-3', deleted: 1 },
+  ];
+  it('returns the group_id of the named budget', () => {
+    expect(findBudget(rows, 'Personal')).toBe('g-1');
+  });
+  it('never selects a deleted budget, and lists the available names', () => {
+    expect(() => findBudget(rows, 'Viejo')).toThrow(/Personal.*Taiko/);
+    expect(() => findBudget(rows, 'Personnal')).toThrow(/Personnal/);
+  });
+});
+
+describe('portHolderIsSandbox', () => {
+  it('free port counts as ok', () => {
+    expect(portHolderIsSandbox('', ['abc'])).toBe(true);
+  });
+  it('held by docker for our container is ok; held by anything else is not', () => {
+    const docker = 'COMMAND   PID USER\ncom.docke 123 marco\n';
+    expect(portHolderIsSandbox(docker, ['abc'])).toBe(true);
+    expect(portHolderIsSandbox(docker, [])).toBe(false);
+    expect(portHolderIsSandbox('COMMAND PID USER\nnode 99 marco\n', ['abc'])).toBe(false);
+  });
+});
+
+describe('NEUTRALISE_SQL on a toy account.sqlite', () => {
+  it('empties secrets, auth and sessions and leaves files untouched', () => {
+    const db = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'neut-')), 'account.sqlite');
+    execFileSync('sqlite3', [db,
+      'CREATE TABLE secrets(name TEXT PRIMARY KEY, value BLOB); CREATE TABLE auth(method TEXT PRIMARY KEY, extra_data TEXT);' +
+      'CREATE TABLE sessions(token TEXT PRIMARY KEY); CREATE TABLE files(id TEXT PRIMARY KEY, group_id TEXT, deleted BOOLEAN, name TEXT);' +
+      "INSERT INTO secrets VALUES('gocardless_secretId','x'); INSERT INTO auth VALUES('password','hash');" +
+      "INSERT INTO sessions VALUES('t'); INSERT INTO files VALUES('f','g',0,'Personal');"]);
+    execFileSync('sqlite3', [db, NEUTRALISE_SQL]);
+    const counts = execFileSync('sqlite3', [db, 'select (select count(*) from secrets),(select count(*) from auth),(select count(*) from sessions),(select count(*) from files);'], { encoding: 'utf8' }).trim();
+    expect(counts).toBe('0|0|0|1');
+  });
+});
+
+describe('dev/.env.example', () => {
+  it('every key parses to an empty string despite trailing comments', () => {
+    const text = fs.readFileSync('dev/.env.example', 'utf8');
+    const env = parseEnvFile(text);
+    expect(Object.keys(env).length).toBeGreaterThan(0);
+    for (const [k, v] of Object.entries(env)) expect(v, k).toBe('');
+  });
+});
+
+describe('.gitignore', () => {
+  it('keeps the copy, the cache and dev/.env out of git', () => {
+    for (const p of ['dev/data/server-files/account.sqlite', 'dev/.cache/x', 'dev/.env']) {
+      expect(() => execFileSync('git', ['check-ignore', '-q', p])).not.toThrow();
+    }
+    expect(() => execFileSync('git', ['check-ignore', '-q', 'dev/.env.example'])).toThrow();
+  });
+});
