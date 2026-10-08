@@ -56,6 +56,8 @@ export function mockApi(overrides: Record<string, unknown> = {}) {
     createRule: vi.fn(async (rule: any) => ({ id: 'new-rule-id', ...rule })),
     updateRule: vi.fn(async (rule: any) => rule),
     deleteRule: vi.fn(async () => true),
+    getAccountBalance: vi.fn(async () => 0),
+    mergeTransactions: vi.fn(async () => 'merged-id'),
     ...wrappedOverrides,
   };
 }

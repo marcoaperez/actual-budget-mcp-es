@@ -58,6 +58,10 @@ const es = {
     `Pagador no encontrado: "${name}"${options.length ? ` — ¿quizá: ${options.join(', ')}?` : ''}`,
   payeeIdNotFound: (id: string) => `pagador inexistente: ${id} (usa get_payees para ver los ids válidos)`,
   accountNotFound: (id: string) => `cuenta inexistente: ${id} (usa get_accounts para ver los ids válidos)`,
+  accountRefNotFound: (ref: string, names: string[]) =>
+    `Cuenta no encontrada: "${ref}". Cuentas abiertas: ${names.join(', ')}`,
+  accountRefAmbiguous: (ref: string, ids: string[]) =>
+    `Hay varias cuentas llamadas "${ref}"; indica su id: ${ids.join(', ')}`,
   transferPayeeNotFound: (accountId: string) =>
     `La cuenta ${accountId} no tiene pagador de transferencia. Actual lo crea con la cuenta: comprueba el id ` +
     'con get_accounts, y si la cuenta existe, ábrela una vez en Actual para que se genere',
@@ -158,6 +162,10 @@ const en: Messages = {
     `Payee not found: "${name}"${options.length ? ` — maybe: ${options.join(', ')}?` : ''}`,
   payeeIdNotFound: (id: string) => `unknown payee: ${id} (use get_payees to list valid ids)`,
   accountNotFound: (id: string) => `unknown account: ${id} (use get_accounts to list valid ids)`,
+  accountRefNotFound: (ref: string, names: string[]) =>
+    `Account not found: "${ref}". Open accounts: ${names.join(', ')}`,
+  accountRefAmbiguous: (ref: string, ids: string[]) =>
+    `Several accounts are named "${ref}"; pass its id: ${ids.join(', ')}`,
   transferPayeeNotFound: (accountId: string) =>
     `Account ${accountId} has no transfer payee. Actual creates one with the account: check the id with ` +
     'get_accounts, and if the account exists, open it once in Actual so the payee is generated',
