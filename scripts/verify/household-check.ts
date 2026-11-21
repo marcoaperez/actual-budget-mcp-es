@@ -24,8 +24,8 @@ import { tool as findTransferIssues } from '../../src/tools/find_transfer_issues
 
 const URL = process.env.ACTUAL_SERVER_URL ?? 'http://localhost:5006';
 const PASSWORD = process.env.ACTUAL_SERVER_PASSWORD ?? 'test-pass';
-if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(URL)) {
-  throw new Error(`Solo contra el servidor efímero local, no ${URL}`);
+if (!/^https?:\/\/(localhost|127\.0\.0\.1):5006\/?$/.test(URL)) {
+  throw new Error(`Solo contra el servidor efímero local (puerto 5006), no ${URL}`);
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -248,7 +248,7 @@ async function run(): Promise<number> {
       const comida = month.categoryGroups.flatMap((g: any) => g.categories).find((c: any) => c.id === COMIDA);
       const note: any = await getCategoryNote.handler({ category_id: OCIO }, ctx);
       const ok = comida?.budgeted === 10000 && (res.ui_template_categories ?? []).includes('Ocio')
-        && note.template_source === 'ui' && !!note.warning && res.changed.some((c: any) => c.category === 'Comida');
+        && note.template_source === 'ui' && /Ocio/.test(note.warning ?? '') && /Ocio/.test(res.warning ?? '') && res.changed.some((c: any) => c.category === 'Comida');
       return { ok, detail: { count: res.count, comidaBudgeted: comida?.budgeted, changed: res.changed, uiCategories: res.ui_template_categories,
         resultWarning: !!res.warning, noteSource: note.template_source, noteWarning: !!note.warning } };
     });
@@ -273,7 +273,8 @@ async function run(): Promise<number> {
       const ids2 = { h2: await idOf('h-2'), h3: await idOf('h-3') };
       const h2 = created.find((p) => p.operation.transaction === ids2.h2 && p.operation.account === ADELANTOS);
       const h3 = created.find((p) => p.operation.transaction === ids2.h3 && p.operation.account === ADELANTOS);
-      const ok = h2?.confidence === 'alta' && h3?.confidence === 'dudosa';
+      const ok = h2?.confidence === 'alta' && /se compensa en la cuenta destino/.test(h2.reason) && !/nómina/.test(h2.reason)
+        && h3?.confidence === 'dudosa' && /«nómina» en las notas/.test(h3.reason);
       return { ok, detail: { compensated: h2 && { confidence: h2.confidence, reason: h2.reason },
         payroll: h3 && { confidence: h3.confidence, reason: h3.reason }, createTransferProposals: created.length } };
     });
