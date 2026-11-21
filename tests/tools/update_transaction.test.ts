@@ -280,4 +280,37 @@ describe('update_transaction — clearing the category and setting the payee by 
     const api = mockApi({ runQuery: async () => ({ data: [row] }) });
     await expect(tool.handler({ transaction_id: T1 }, { api, config: testConfig })).rejects.toThrow(/payee_id/);
   });
+
+  describe('amount on a transfer leg whose twin is protected', () => {
+    const LEG = 'dddddddd-1111-4111-8111-111111111111';
+    const TWIN = 'dddddddd-2222-4222-8222-222222222222';
+    const leg = { id: LEG, date: '2026-07-01', account: 'a1', amount: -1000, transfer_id: TWIN };
+    const twinOk = { id: TWIN, account: 'a2', amount: 1000, transfer_id: LEG, is_child: false, parent_id: null, imported_id: null, reconciled: false };
+    function twinApi(twin: any) {
+      return mockApi({ runQuery: async (q: any) => {
+        const id = q.calls.filter?.[0]?.id;
+        return { data: id === LEG ? [leg] : id === TWIN && twin ? [twin] : [] };
+      } });
+    }
+    it.each([
+      ['a split part', { is_child: true, parent_id: 'pp' }],
+      ['reconciled', { reconciled: true }],
+      ['a bank import', { imported_id: 'bank-1' }],
+    ])('refuses an amount change when the twin is %s, writing nothing', async (_n, patch) => {
+      const api = twinApi({ ...twinOk, ...patch });
+      await expect(tool.handler({ transaction_id: LEG, amount: -20 }, { api, config: testConfig }))
+        .rejects.toThrow(new RegExp(TWIN));
+      expect(api.updateTransaction).not.toHaveBeenCalled();
+    });
+    it('allows the amount change when the twin is a plain manual row', async () => {
+      const api = twinApi(twinOk);
+      await tool.handler({ transaction_id: LEG, amount: -20 }, { api, config: testConfig });
+      expect(api.updateTransaction).toHaveBeenCalledWith(LEG, { amount: -2000 });
+    });
+    it('does not look at the twin when amount is not changed', async () => {
+      const api = twinApi({ ...twinOk, reconciled: true });
+      await tool.handler({ transaction_id: LEG, notes: 'x' }, { api, config: testConfig });
+      expect(api.updateTransaction).toHaveBeenCalledWith(LEG, { notes: 'x' });
+    });
+  });
 });

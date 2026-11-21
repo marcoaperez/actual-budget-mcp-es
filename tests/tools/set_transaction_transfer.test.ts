@@ -191,4 +191,44 @@ describe('set_transaction_transfer', () => {
       expect(api.updateTransaction).not.toHaveBeenCalled();
     });
   });
+
+  describe('re-pointing a leg moves its twin', () => {
+    const TWIN = 'eeeeeeee-1111-4111-8111-111111111111';
+    const leg = { ...plain, payee: P_DST, category: null, transfer_id: TWIN };
+    const twinOk = { id: TWIN, account: A_DST, amount: 5000, transfer_id: T1, is_child: false, parent_id: null, imported_id: null, reconciled: false };
+    const P_OTHER = 'ffffffff-1111-4111-8111-111111111111';
+    const withOther = { getPayees: async () => [...payees, { id: P_OTHER, name: 'Cash', transfer_acct: A_OTHER }] };
+    function byId(twin: any, afterLeg: any = { ...leg, payee: P_OTHER }) {
+      let legReads = 0;
+      return mockApi({
+        getAccounts: async () => accounts,
+        ...withOther,
+        runQuery: vi.fn(async (q: any) => {
+          const id = q.calls.filter?.[0]?.id;
+          if (id === T1) { legReads += 1; return { data: [legReads === 1 ? leg : afterLeg] }; }
+          return { data: id === TWIN && twin ? [twin] : [] };
+        }),
+      });
+    }
+    it.each([
+      ['a split part', { is_child: true, parent_id: 'pp' }, false],
+      ['reconciled', { reconciled: true }, true],
+      ['a bank import', { imported_id: 'bank-1' }, true],
+    ])('refuses when the twin is %s', async (_n, patch, forceable) => {
+      const api = byId({ ...twinOk, ...patch });
+      await expect(tool.handler({ transaction_id: T1, target_account_id: A_OTHER }, { api, config: testConfig }))
+        .rejects.toThrow(new RegExp(TWIN));
+      expect(api.updateTransaction).not.toHaveBeenCalled();
+      // force salta reconciliada/importada, nunca una parte de split
+      const api2 = byId({ ...twinOk, ...patch });
+      const p = tool.handler({ transaction_id: T1, target_account_id: A_OTHER, force: true }, { api: api2, config: testConfig });
+      if (forceable) { await p; expect(api2.updateTransaction).toHaveBeenCalledTimes(1); }
+      else { await expect(p).rejects.toThrow(new RegExp(TWIN)); expect(api2.updateTransaction).not.toHaveBeenCalled(); }
+    });
+    it('re-points when the twin is a plain manual row', async () => {
+      const api = byId(twinOk);
+      await tool.handler({ transaction_id: T1, target_account_id: A_OTHER }, { api, config: testConfig });
+      expect(api.updateTransaction).toHaveBeenCalledWith(T1, { payee: P_OTHER });
+    });
+  });
 });

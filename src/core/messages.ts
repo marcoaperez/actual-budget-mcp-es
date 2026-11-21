@@ -76,6 +76,14 @@ const es = {
   twinProtected: (id: string, reason: 'reconciled' | 'imported') =>
     `La otra pata de la transferencia (${id}) ${reason === 'reconciled' ? 'está conciliada' : 'viene del banco (tiene imported_id)'}: ` +
     'quitar la transferencia la borraría o desvincularía. Usa force: true si es lo que quieres',
+  twinAmountSplitPart: (id: string) =>
+    `La otra pata de la transferencia (${id}) es una parte de un split: Actual reescribiría su importe y el padre dejaría de cuadrar. Deshaz o rehaz el split en Actual`,
+  twinAmountProtected: (id: string, reason: 'reconciled' | 'imported') =>
+    `La otra pata de la transferencia (${id}) ${reason === 'reconciled' ? 'está conciliada' : 'viene del banco (tiene imported_id)'}: cambiar el importe aquí lo reescribiría allí. Edítala directamente en Actual`,
+  twinMoveSplitPart: (id: string) =>
+    `La otra pata de la transferencia (${id}) es una parte de un split: redirigir esta transferencia la movería de cuenta fuera de su padre. Deshaz o rehaz el split en Actual`,
+  twinMoveProtected: (id: string, reason: 'reconciled' | 'imported') =>
+    `La otra pata de la transferencia (${id}) ${reason === 'reconciled' ? 'está conciliada' : 'viene del banco (tiene imported_id)'}: redirigir la transferencia la movería de cuenta y podría duplicarse al reimportar. Usa force: true si es lo que quieres`,
   twinMayReturn: (accountName: string) =>
     `La otra pata estaba en "${accountName}" y venía del banco: según la preferencia de reimportación de esa cuenta, ` +
     'la sincronización bancaria puede volver a traerla',
@@ -275,6 +283,14 @@ const en: Messages = {
   twinProtected: (id: string, reason: 'reconciled' | 'imported') =>
     `The other leg of the transfer (${id}) is ${reason === 'reconciled' ? 'reconciled' : 'a bank import (has imported_id)'}: ` +
     'removing the transfer would delete or detach it. Pass force: true if that is what you want',
+  twinAmountSplitPart: (id: string) =>
+    `The other leg of the transfer (${id}) is a split part: Actual would rewrite its amount and the parent would no longer add up. Undo or redo the split in Actual`,
+  twinAmountProtected: (id: string, reason: 'reconciled' | 'imported') =>
+    `The other leg of the transfer (${id}) is ${reason === 'reconciled' ? 'reconciled' : 'a bank import (has imported_id)'}: changing the amount here would rewrite it there. Edit it directly in Actual`,
+  twinMoveSplitPart: (id: string) =>
+    `The other leg of the transfer (${id}) is a split part: re-pointing this transfer would move it to another account, away from its parent. Undo or redo the split in Actual`,
+  twinMoveProtected: (id: string, reason: 'reconciled' | 'imported') =>
+    `The other leg of the transfer (${id}) is ${reason === 'reconciled' ? 'reconciled' : 'a bank import (has imported_id)'}: re-pointing the transfer would move it to another account and it could be duplicated on re-import. Pass force: true if that is what you want`,
   twinMayReturn: (accountName: string) =>
     `The other leg was in "${accountName}" and came from the bank: depending on that account's reimport preference, ` +
     'bank sync may bring it back',

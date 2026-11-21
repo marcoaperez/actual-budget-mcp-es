@@ -24,7 +24,7 @@ const schema = z.object(input);
 export const tool: ToolDef = {
   name: 'update_transaction',
   title: 'Update transaction',
-  description: 'Update fields of an existing transaction (category, payee, notes, date, amount, cleared). Amount in currency units. Pass category_id: null to leave it uncategorized, payee_id to set a known payee, or payee_name to resolve/create one. Also works on a split part (child id): only category, notes and payee are editable there. Returns the resulting transaction.',
+  description: 'Update fields of an existing transaction (category, payee, notes, date, amount, cleared). Amount in currency units. Pass category_id: null to leave it uncategorized, payee_id to set a known payee, or payee_name to resolve/create one. Also works on a split part (child id): only category, notes and payee are editable there. On a split parent only notes, payee, date and cleared can be edited (amount and category live in the parts). Changing the amount of a transfer leg is refused when the other leg is a split part, reconciled or a bank import, because Actual would rewrite it. Returns the resulting transaction.',
   readOnly: false,
   // Sobrescribe los campos indicados de la transacción: destructivo (en MCP, false = solo aditivo).
   annotations: { destructiveHint: true, idempotentHint: true },
@@ -79,6 +79,17 @@ export const tool: ToolDef = {
     if (!isChild && (existing.is_parent || (Array.isArray(existing.subtransactions) && existing.subtransactions.length > 0))) {
       if (a.amount !== undefined || a.category_id !== undefined) {
         throw new Error(m.splitParentAmount(a.transaction_id));
+      }
+    }
+    // Cambiar el importe de una pata de transferencia hace que Actual reescriba la otra
+    // (-importe): si es una parte de split el padre dejaría de cuadrar, y si está conciliada
+    // o viene del banco se alteraría una fila que no es nuestra.
+    if (!isChild && existing.transfer_id && a.amount !== undefined) {
+      const twin = await getTransactionRow(api, existing.transfer_id);
+      if (twin) {
+        if (twin.is_child || twin.parent_id) throw new Error(m.twinAmountSplitPart(twin.id));
+        if (twin.reconciled) throw new Error(m.twinAmountProtected(twin.id, 'reconciled'));
+        if (twin.imported_id) throw new Error(m.twinAmountProtected(twin.id, 'imported'));
       }
     }
     // Actual acepta cualquier id de categoría con forma de UUID y deja el movimiento

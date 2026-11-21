@@ -11,13 +11,14 @@ const input = {
   transaction_id: ID.describe('Transaction UUID to convert (from get_transactions)'),
   target_account_id: ID.describe('Account UUID the money moves to/from (from get_accounts)'),
   category_id: ID.optional().describe('Category to keep on the transaction. Only for transfers that cross the budget side (on-budget <-> off-budget); refused when both accounts are on the same side'),
+  force: z.boolean().default(false).describe('Allow re-pointing an existing transfer whose other leg is reconciled or a bank import (never a split part)'),
 };
 const schema = z.object(input);
 
 export const tool: ToolDef = {
   name: 'set_transaction_transfer',
   title: 'Turn transaction into transfer',
-  description: 'Turn an ordinary transaction into a transfer with another account, by pointing it at that account transfer payee. Also works on a split part (child id), not on the split parent. For a transfer that crosses the budget side (e.g. the principal of a mortgage payment going to an off-budget loan account) pass category_id to keep the category. Actual creates and links the matching transaction on the other account, and clears the category on both when the two accounts are on the same side of the budget (both on-budget or both off-budget). If the transaction is already a transfer, it is re-pointed to the new destination. Returns the transaction and the id of the linked counterpart. If the target account syncs with the bank, the result carries a warning: the bank will import its own leg, so joining two existing transactions is better done with find_transfer_issues (link).',
+  description: 'Turn an ordinary transaction into a transfer with another account, by pointing it at that account transfer payee. Also works on a split part (child id), not on the split parent. For a transfer that crosses the budget side (e.g. the principal of a mortgage payment going to an off-budget loan account) pass category_id to keep the category. Actual creates and links the matching transaction on the other account, and clears the category on both when the two accounts are on the same side of the budget (both on-budget or both off-budget). If the transaction is already a transfer, it is re-pointed to the new destination (Actual moves the other leg): refused when that other leg is a split part, and when it is reconciled or a bank import unless force is true. Returns the transaction and the id of the linked counterpart. If the target account syncs with the bank, the result carries a warning: the bank will import its own leg, so joining two existing transactions is better done with find_transfer_issues (link).',
   readOnly: false,
   annotations: { destructiveHint: true, idempotentHint: true },
   inputSchema: input,
@@ -54,6 +55,20 @@ export const tool: ToolDef = {
     const same = sameBudgetSide(accounts, current.account, a.target_account_id);
     if (a.category_id !== undefined && same !== false) throw new Error(m.transferCategorySameSide(target.name));
     const clearsCategory = same === true && !!current.category;
+
+    // Re-apuntar una pata ya enlazada hace que Actual MUEVA la otra a la cuenta nueva: una
+    // parte de split saldría de la cuenta de su padre; una fila del banco o conciliada se
+    // movería y al reimportar duplicaría el dinero. Se lee ANTES de escribir.
+    if (current.transfer_id) {
+      const twin = await getTransactionRow(api, current.transfer_id);
+      if (twin && twin.account !== a.target_account_id) {
+        if (twin.is_child || twin.parent_id) throw new Error(m.twinMoveSplitPart(twin.id));
+        if (!a.force) {
+          if (twin.reconciled) throw new Error(m.twinMoveProtected(twin.id, 'reconciled'));
+          if (twin.imported_id) throw new Error(m.twinMoveProtected(twin.id, 'imported'));
+        }
+      }
+    }
 
     const { byTransferAccount } = await getPayeeIndex(api);
     const payee = byTransferAccount.get(a.target_account_id);
