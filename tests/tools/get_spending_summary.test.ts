@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { tool } from '../../src/tools/get_spending_summary.js';
 import { mockApi, testConfig } from '../helpers/mock-api.js';
 import { setMessageLanguage } from '../../src/core/messages.js';
+import { dateRange } from '../../src/core/aql.js';
 
 // El idioma activo es estado de módulo: restaurarlo o se contamina el resto del fichero.
 afterEach(() => setMessageLanguage('es'));
@@ -19,6 +20,12 @@ describe('get_spending_summary', () => {
     const r: any = await tool.handler({ start_date: '2026-06-01', end_date: '2026-06-30' }, { api, config: testConfig });
     expect(r.rows.map((x: any) => x.key)).toEqual(['Alimentacion', 'Ropa']);
     expect(r.rows[0]).toMatchObject({ amount: 1755.50, transaction_count: 2 });
+  });
+  it('aplica start_date y end_date', async () => {
+    const api = mockApi({ runQuery: async () => ({ data: rows }) });
+    await tool.handler({ start_date: '2026-06-01', end_date: '2026-06-30' }, { api, config: testConfig });
+    const q: any = (api.q as any).mock.results[0].value;
+    expect(q.calls.filter).toContainEqual(dateRange('2026-06-01', '2026-06-30'));
   });
   it('groups by month across categories', async () => {
     const api = mockApi({ runQuery: async () => ({ data: rows }) });

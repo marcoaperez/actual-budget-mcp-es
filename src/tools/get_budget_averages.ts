@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { moneyFields } from '../core/money.js';
 import type { ToolDef } from '../core/types.js';
+import { dateRange } from '../core/aql.js';
 
 export function lastCompleteMonths(n: number, today: Date = new Date()) {
   const months: string[] = [];
@@ -30,7 +31,7 @@ export const tool: ToolDef = {
     const win = lastCompleteMonths(a.months_back);
 
     let q: any = api.q('transactions')
-      .filter({ date: { $gte: win.start, $lte: win.end } })
+      .filter(dateRange(win.start, win.end))
       .filter({ transfer_id: null })
       .filter({ is_parent: false });
     const { data } = await api.runQuery(

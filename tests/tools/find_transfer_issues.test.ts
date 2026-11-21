@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { tool } from '../../src/tools/find_transfer_issues.js';
 import { mockApi, testConfig } from '../helpers/mock-api.js';
+import { dateRange } from '../../src/core/aql.js';
 
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
@@ -32,7 +33,7 @@ describe('find_transfer_issues', () => {
     const api = apiWith([{ ...x, date: '2026-08-30' }, { ...y, date: '2026-08-31' }]);
     const r: any = await tool.handler({ start_date: '2026-09-01', end_date: '2026-09-30' }, { api, config: testConfig });
     const firstQuery = (api.q as any).mock.results[0].value;
-    expect(firstQuery.calls.filter[0]).toEqual({ date: { $gte: '2026-08-26', $lte: '2026-10-06' } });
+    expect(firstQuery.calls.filter[0]).toEqual(dateRange('2026-08-26', '2026-10-06'));
     expect(r.total_count).toBe(0);
   });
 
@@ -49,7 +50,8 @@ describe('find_transfer_issues', () => {
           { id: 'edge', account: B, date: '2026-08-31', amount: 10000, imported_id: 'i2' },
           { id: 'far', account: C, date: '2026-08-28', amount: -10000, imported_id: 'i3' },
         ];
-        return { data: all.filter((r) => r.date >= f.date.$gte && r.date <= f.date.$lte) };
+        const [lo, hi] = f.$and.map((c: any) => c.date.$gte ?? c.date.$lte);
+        return { data: all.filter((r) => r.date >= lo && r.date <= hi) };
       }),
     });
     const r: any = await tool.handler({ start_date: '2026-09-01', end_date: '2026-09-30' }, { api, config: testConfig });

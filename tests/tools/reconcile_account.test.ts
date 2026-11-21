@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { tool } from '../../src/tools/reconcile_account.js';
 import { mockApi, testConfig } from '../helpers/mock-api.js';
+import { dateRange } from '../../src/core/aql.js';
 
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
@@ -58,8 +59,8 @@ describe('reconcile_account', () => {
   it('lee con margen de 2 × LINK_MAX_DAYS y avisa en la descripción de la ventana de 90 días', async () => {
     const api = apiWith({ balance: 97500, rows: [] });
     await tool.handler({ account: A, bank_balance: 1000, date: '2026-09-30' }, { api, config: testConfig });
-    const q = (api.q as any).mock.results.map((r: any) => r.value).find((v: any) => v.calls.filter?.[0]?.date?.$gte);
-    expect(q.calls.filter[0]).toEqual({ date: { $gte: '2026-06-26', $lte: '2026-10-06' } });
+    const q = (api.q as any).mock.results.map((r: any) => r.value).find((v: any) => v.calls.filter?.[0]?.$and);
+    expect(q.calls.filter[0]).toEqual(dateRange('2026-06-26', '2026-10-06'));
     expect(tool.description).toMatch(/90 days before date/);
   });
 

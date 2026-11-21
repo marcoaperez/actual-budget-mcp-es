@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { tool, lastCompleteMonths } from '../../src/tools/get_budget_averages.js';
 import { mockApi, testConfig } from '../helpers/mock-api.js';
+import { dateRange } from '../../src/core/aql.js';
 
 describe('lastCompleteMonths', () => {
   it('excludes the running month', () => {
@@ -12,6 +13,13 @@ describe('lastCompleteMonths', () => {
 });
 
 describe('get_budget_averages', () => {
+  it('limita la consulta a la ventana completa de meses (inicio y fin)', async () => {
+    const api = mockApi();
+    await tool.handler({ months_back: 3 }, { api, config: testConfig });
+    const w = lastCompleteMonths(3);
+    const q: any = (api.q as any).mock.results[0].value;
+    expect(q.calls.filter).toContainEqual(dateRange(w.start, w.end));
+  });
   it('computes average, median and max per category', async () => {
     const rows = [
       { 'category.id': 'c1', 'category.name': 'Alimentacion', 'category.group.name': 'Comida', 'category.group.is_income': false, date: '2026-04-10', amount: -30000 },

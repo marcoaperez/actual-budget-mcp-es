@@ -3,6 +3,7 @@
 import type { Messages } from './messages.js';
 import { getPayeeIndex } from './payees.js';
 import type { AccountInfo, DetectInput, TxRow } from './reconcile-model.js';
+import { dateRange } from './aql.js';
 
 const TX_FIELDS = [
   'id', 'account', 'date', 'amount', 'imported_id', 'transfer_id', 'reconciled', 'cleared',
@@ -56,7 +57,7 @@ export function toTxRow(r: any): TxRow {
 export async function loadTxRows(api: any, range: { start: string; end: string }): Promise<TxRow[]> {
   const { data } = await api.runQuery(
     api.q('transactions')
-      .filter({ date: { $gte: range.start, $lte: range.end } })
+      .filter(dateRange(range.start, range.end))
       .options({ splits: 'all' })
       .select(TX_FIELDS),
   );

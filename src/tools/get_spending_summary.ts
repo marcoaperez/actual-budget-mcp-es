@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { moneyFields } from '../core/money.js';
 import type { ToolDef } from '../core/types.js';
 import { activeMessages } from '../core/messages.js';
+import { dateRange } from '../core/aql.js';
 
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: () => activeMessages().dateFormat });
 
@@ -34,7 +35,7 @@ export const tool: ToolDef = {
     const fmt = (c: number) => moneyFields(c, config.locale, config.currency);
 
     let q: any = api.q('transactions')
-      .filter({ date: { $gte: a.start_date, $lte: a.end_date } })
+      .filter(dateRange(a.start_date, a.end_date))
       .filter({ transfer_id: null })
       .filter({ is_parent: false });
     const { data } = await api.runQuery(

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { tool } from '../../src/tools/get_transactions.js';
 import { mockApi, testConfig } from '../helpers/mock-api.js';
+import { dateRange } from '../../src/core/aql.js';
 
 const rows = [
   { id: 't1', date: '2026-06-10', 'account.name': 'Banco', 'payee.name': 'Mercadona',
@@ -27,6 +28,12 @@ describe('get_transactions', () => {
     expect(r.transactions[1].is_child).toBe(true);
     expect(r.transactions[1].parent_id).toBe('tP');
     expect(r.total_count).toBe(2);
+  });
+  it('aplica start_date y end_date (una sola fecha = ese día)', async () => {
+    const api = mockApi();
+    await tool.handler({ start_date: '2026-11-15', end_date: '2026-11-15' }, { api, config: testConfig });
+    const selectQ: any = (api.q as any).mock.results[1].value;
+    expect(selectQ.calls.filter).toContainEqual(dateRange('2026-11-15', '2026-11-15'));
   });
   it('filters transfers out via query by default and applies pagination filters', async () => {
     const api = mockApi();

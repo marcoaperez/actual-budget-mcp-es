@@ -6,6 +6,7 @@ import {
 import { summarizeTx } from '../../src/core/reconcile-model.js';
 import { messagesFor } from '../../src/core/messages.js';
 import { mockApi } from '../helpers/mock-api.js';
+import { dateRange } from '../../src/core/aql.js';
 
 const m = messagesFor('es');
 const acc = (over: any) => ({ id: 'a', name: 'Cuenta', offbudget: false, closed: false, bankSynced: false, ...over });
@@ -52,6 +53,11 @@ describe('toTxRow y loadTxRows', () => {
     await loadTxRows(api, { start: '2026-09-01', end: '2026-09-30' });
     expect((api.q as any).mock.results[0].value.calls.select[0]).toContain('category');
   });
+  it('loadTxRows aplica ambas cotas del rango', async () => {
+    const api = mockApi({ runQuery: async () => ({ data: [] }) });
+    await loadTxRows(api, { start: '2026-09-01', end: '2026-09-30' });
+    expect((api.q as any).mock.results[0].value.calls.filter).toContainEqual(dateRange('2026-09-01', '2026-09-30'));
+  });
   it('lee el rango con splits all y descarta padres e hijos de split', async () => {
     const api = mockApi({
       runQuery: async () => ({ data: [
@@ -63,7 +69,7 @@ describe('toTxRow y loadTxRows', () => {
     const rows = await loadTxRows(api, { start: '2026-09-01', end: '2026-09-30' });
     expect(rows.map((r) => r.id)).toEqual(['s']);
     const q = (api.q as any).mock.results[0].value;
-    expect(q.calls.filter[0]).toEqual({ date: { $gte: '2026-09-01', $lte: '2026-09-30' } });
+    expect(q.calls.filter[0]).toEqual(dateRange('2026-09-01', '2026-09-30'));
     expect(q.calls.options[0]).toEqual({ splits: 'all' });
   });
 });

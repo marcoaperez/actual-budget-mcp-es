@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { moneyFields, toCents } from '../core/money.js';
 import { ID, type ToolDef } from '../core/types.js';
 import { activeMessages } from '../core/messages.js';
+import { dateRange } from '../core/aql.js';
 
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: () => activeMessages().dateFormat });
 
@@ -28,7 +29,7 @@ export const tool: ToolDef = {
   inputSchema: input,
   handler: async (raw, { api, config }) => {
     const a = schema.parse(raw ?? {});
-    const filters: any[] = [{ date: { $gte: a.start_date, $lte: a.end_date } }, { is_parent: false }];
+    const filters: any[] = [dateRange(a.start_date, a.end_date), { is_parent: false }];
     if (!a.include_transfers) filters.push({ transfer_id: null });
     if (a.account_id) filters.push({ account: a.account_id });
     if (a.category_id) filters.push({ category: a.category_id });
