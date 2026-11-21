@@ -30,7 +30,9 @@ export async function templateSources(api: any): Promise<Map<string, 'notes' | '
 
 /** Llama a un handler interno de loot-core (api.internal es null sin presupuesto abierto). */
 export async function sendInternal(api: any, name: string, args: object): Promise<any> {
-  const send = api.internal?.send;
-  if (!send) throw new Error(activeMessages().internalUnavailable);
-  return send.call(api.internal, name, args);
+  // Con `import * as api` (Node ESM sobre un módulo CJS) el export con nombre `internal` es una
+  // instantánea tomada al importar (null); la copia viva vive en `default.internal`.
+  const internal = api.internal ?? api.default?.internal;
+  if (!internal?.send) throw new Error(activeMessages().internalUnavailable);
+  return internal.send(name, args);
 }
