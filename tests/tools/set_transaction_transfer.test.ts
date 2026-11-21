@@ -69,14 +69,6 @@ describe('set_transaction_transfer', () => {
       .rejects.toThrow(T1);
   });
 
-  it('rejects a split child by the parent-row detector', async () => {
-    const parent = { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', account: A_SRC, subtransactions: [{ id: T1 }] };
-    const api = apiWithRows([[parent]]);
-    await expect(tool.handler({ transaction_id: T1, target_account_id: A_DST }, { api, config: testConfig }))
-      .rejects.toThrow(/split/i);
-    expect(api.updateTransaction).not.toHaveBeenCalled();
-  });
-
   it('rejects a split parent — Actual cannot make one a transfer', async () => {
     const api = apiWithRows([[{ ...plain, is_parent: true, subtransactions: [{ id: 'x' }, { id: 'y' }] }]]);
     await expect(tool.handler({ transaction_id: T1, target_account_id: A_DST }, { api, config: testConfig }))
@@ -101,5 +93,102 @@ describe('set_transaction_transfer', () => {
     const api = apiWithRows([[plain], [linked]]);
     const r: any = await tool.handler({ transaction_id: T1, target_account_id: A_DST }, { api, config: testConfig });
     expect(r.warning).toBeUndefined();
+  });
+
+  describe('split parts and category', () => {
+    const PARENT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const T_CHILD = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const A_HIP = '77777777-7777-4777-8777-777777777777';
+    const P_HIP = '88888888-8888-4888-8888-888888888888';
+    const CUOTAS = '99999999-9999-4999-8999-999999999999';
+    const splitAccounts = [
+      { id: A_SRC, name: 'Checking', offbudget: false },
+      { id: A_DST, name: 'Savings', offbudget: false },
+      { id: A_HIP, name: 'Hipoteca', offbudget: true },
+    ];
+    const splitPayees = [
+      { id: P_DST, name: 'Savings', transfer_acct: A_DST },
+      { id: P_HIP, name: 'Hipoteca', transfer_acct: A_HIP },
+    ];
+    const parentRow = { id: PARENT, account: A_SRC, is_parent: true, subtransactions: [{ id: T_CHILD }] };
+    const childRow = { id: T_CHILD, account: A_SRC, parent_id: PARENT, is_child: true, amount: -3000, payee: 'p-old', category: 'c-old', transfer_id: null };
+    const groups = async () => [{ id: 'g', name: 'G', categories: [{ id: CUOTAS, name: 'Cuotas' }] }];
+    // Lecturas: padre agrupado, fila hijo, y re-lecturas del hijo.
+    const build = (rows: any[][]) => apiWithRows(rows, {
+      getAccounts: async () => splitAccounts,
+      getPayees: async () => splitPayees,
+      getCategoryGroups: groups,
+    });
+
+    it('turns a child into a cross-budget transfer keeping a category', async () => {
+      const after = { ...childRow, payee: P_HIP, category: CUOTAS, transfer_id: LEG };
+      const api = build([[parentRow], [childRow], [after]]);
+      const r: any = await tool.handler({ transaction_id: T_CHILD, target_account_id: A_HIP, category_id: CUOTAS }, { api, config: testConfig });
+      expect(api.updateTransaction).toHaveBeenCalledTimes(1);
+      expect(api.updateTransaction).toHaveBeenCalledWith(T_CHILD, { payee: P_HIP, category: CUOTAS });
+      expect(r.transfer_id).toBe(LEG);
+      expect(r.clears_category).toBe(false);
+      expect(r.parent_id).toBe(PARENT);
+    });
+
+    it('refuses category_id when the target is on the same budget side', async () => {
+      const api = build([[parentRow], [childRow]]);
+      await expect(tool.handler({ transaction_id: T_CHILD, target_account_id: A_DST, category_id: CUOTAS }, { api, config: testConfig }))
+        .rejects.toThrow(/Savings/);
+      expect(api.updateTransaction).not.toHaveBeenCalled();
+    });
+
+    it('refuses category_id when the side cannot be confirmed', async () => {
+      const api = build([[parentRow], [{ ...childRow, account: 'unknown-acc' }]]);
+      await expect(tool.handler({ transaction_id: T_CHILD, target_account_id: A_HIP, category_id: CUOTAS }, { api, config: testConfig }))
+        .rejects.toThrow(/Hipoteca/);
+      expect(api.updateTransaction).not.toHaveBeenCalled();
+    });
+
+    it('allows same-side target without category and reports clears_category', async () => {
+      const after = { ...childRow, payee: P_DST, category: null, transfer_id: LEG };
+      const api = build([[parentRow], [childRow], [after]]);
+      const r: any = await tool.handler({ transaction_id: T_CHILD, target_account_id: A_DST }, { api, config: testConfig });
+      expect(api.updateTransaction).toHaveBeenCalledWith(T_CHILD, { payee: P_DST });
+      expect(r.clears_category).toBe(true);
+    });
+
+    it('clears_category is false when the row had no category', async () => {
+      const bare = { ...childRow, category: null };
+      const after = { ...bare, payee: P_DST, transfer_id: LEG };
+      const api = build([[parentRow], [bare], [after]]);
+      const r: any = await tool.handler({ transaction_id: T_CHILD, target_account_id: A_DST }, { api, config: testConfig });
+      expect(r.clears_category).toBe(false);
+    });
+
+    it('still rejects a parent', async () => {
+      const api = build([[parentRow]]);
+      await expect(tool.handler({ transaction_id: PARENT, target_account_id: A_DST }, { api, config: testConfig }))
+        .rejects.toThrow(PARENT);
+      expect(api.updateTransaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects the child own account', async () => {
+      const api = build([[parentRow], [childRow]]);
+      await expect(tool.handler({ transaction_id: T_CHILD, target_account_id: A_SRC }, { api, config: testConfig }))
+        .rejects.toThrow(/distinta|different/);
+      expect(api.updateTransaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects a closed target account', async () => {
+      const api = build([[parentRow], [childRow]]);
+      (api.getAccounts as any) = async () => splitAccounts.map((a) => (a.id === A_HIP ? { ...a, closed: true } : a));
+      await expect(tool.handler({ transaction_id: T_CHILD, target_account_id: A_HIP }, { api, config: testConfig }))
+        .rejects.toThrow(/cerrada|closed/);
+      expect(api.updateTransaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects a category id not in the index', async () => {
+      const api = build([[parentRow], [childRow]]);
+      const bogus = '12121212-1212-4121-8121-121212121212';
+      await expect(tool.handler({ transaction_id: T_CHILD, target_account_id: A_HIP, category_id: bogus }, { api, config: testConfig }))
+        .rejects.toThrow(bogus);
+      expect(api.updateTransaction).not.toHaveBeenCalled();
+    });
   });
 });
