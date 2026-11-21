@@ -2,13 +2,45 @@
 // rules). Puras: reciben filas ya leídas y devuelven propuestas; nunca escriben.
 import type { Messages } from './messages.js';
 import { clearsCategory, type AccountInfo, type DetectInput, type Proposal, type TxRow } from './reconcile-model.js';
-import { daysApart, normalizeText, syncedAccountIds } from './reconcile-data.js';
+import { COMPENSATION_WINDOW_DAYS, daysApart, normalizeText, syncedAccountIds } from './reconcile-data.js';
+import { toUnits } from './money.js';
 
 export const LINK_MAX_DAYS = 3;
 export const LINK_SURE_MAX_DAYS = 1;
 export const MERGE_MAX_DAYS = 2;
 export const DEFAULT_RANGE_DAYS = 90;
 export const MIN_ACCOUNT_NAME_LENGTH = 3;
+/** Margen (± días) en que la cuenta destino debe compensar el importe para que un create_transfer sea `alta`. */
+export const COMPENSATION_DAYS = COMPENSATION_WINDOW_DAYS;
+/** Términos de nómina, factura o impuesto: bajan a `dudosa` (sin acentos, en minúsculas). */
+export const NON_TRANSFER_KEYWORDS = [
+  'nomina', 'salario', 'factura', 'recibo', 'impuesto', 'iva', 'irpf', 'aeat', 'hacienda',
+  'seguridad social', 'payroll', 'salary', 'invoice', 'tax',
+];
+/** Forma con acento para mostrarla en la razón. */
+const KEYWORD_DISPLAY: Record<string, string> = { nomina: 'nómina' };
+
+// Palabra completa: letras y dígitos cuentan como parte de la palabra (iva no casa con «privada»).
+const KEYWORD_PATTERNS = NON_TRANSFER_KEYWORDS.map((k) => ({
+  keyword: k,
+  re: new RegExp(`(?<![\\p{L}\\p{N}])${k.replace(/ /g, '\\s+')}(?![\\p{L}\\p{N}])`, 'u'),
+}));
+
+/** Primera palabra clave de nómina/factura/impuesto que aparece como palabra completa, o null. */
+export function findKeyword(text: string): string | null {
+  const t = normalizeText(text);
+  return KEYWORD_PATTERNS.find((p) => p.re.test(t))?.keyword ?? null;
+}
+
+/** Fila de la cuenta destino con el MISMO importe con signo que x (lo contrario de la pata que crearía
+ *  la transferencia) a ±COMPENSATION_DAYS. Admite transferencias y cualquier estado de conciliación. */
+export function findCompensation(x: TxRow, targetAccount: string, targetRows: TxRow[]): TxRow | null {
+  return (
+    targetRows.find(
+      (y) => y.id !== x.id && y.account === targetAccount && y.amount === x.amount && daysApart(x.date, y.date) <= COMPENSATION_DAYS,
+    ) ?? null
+  );
+}
 
 /** Movimiento que aún puede enlazarse o convertirse en transferencia. */
 const isOpen = (r: TxRow) => !r.reconciled && r.transfer_id === null && r.amount !== 0;
@@ -75,6 +107,20 @@ export function detectMerges(rows: TxRow[], m: Messages): Proposal[] {
   });
 }
 
+/** Razón legible si beneficiario, beneficiario importado o notas llevan una palabra clave; null si no. */
+function keywordHit(x: TxRow, payeeName: string, m: Messages): string | null {
+  const fields: [string, string][] = [
+    [payeeName, m.fieldPayee],
+    [x.imported_payee ?? '', m.fieldImportedPayee],
+    [x.notes ?? '', m.fieldNotes],
+  ];
+  for (const [text, label] of fields) {
+    const k = findKeyword(text);
+    if (k) return m.reasonKeyword(KEYWORD_DISPLAY[k] ?? k, label);
+  }
+  return null;
+}
+
 export function detectCreateTransfers(input: DetectInput, m: Messages, linkable: Set<string>): Proposal[] {
   const synced = syncedAccountIds(input.accounts, input.rows);
   const manual = input.accounts.filter((a) => !a.closed && !synced.has(a.id));
@@ -90,11 +136,21 @@ export function detectCreateTransfers(input: DetectInput, m: Messages, linkable:
           .filter((a): a is AccountInfo => !!a && a.id !== x.account)
       : [];
     if (fromHistory.length > 0) {
+      const hit = keywordHit(x, payeeName, m);
       for (const target of fromHistory) {
+        const comp = findCompensation(x, target.id, input.targetRows);
+        const uniqueHistory = rawHistory.length === 1 && fromHistory.length === 1;
+        const parts = [m.reasonCreateFromHistory(target.name)];
+        if (hit) parts.push(hit);
+        parts.push(
+          comp
+            ? m.reasonCompensated(comp.date, toUnits(comp.amount).toFixed(2))
+            : m.reasonNotCompensated(COMPENSATION_DAYS),
+        );
         out.push({
           operation: { type: 'create_transfer', transaction: x.id, account: target.id },
-          confidence: rawHistory.length === 1 && fromHistory.length === 1 ? 'alta' : 'dudosa',
-          reason: m.reasonCreateFromHistory(target.name),
+          confidence: uniqueHistory && !hit && comp ? 'alta' : 'dudosa',
+          reason: parts.join('; '),
           transactions: [x],
           clears_category: clearsCategory([x], [x.account, target.id], input.accounts),
         });

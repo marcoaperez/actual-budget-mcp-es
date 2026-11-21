@@ -157,6 +157,15 @@ const es = {
     (unique ? '' : '; hay más de un candidato'),
   reasonCreateFromHistory: (account: string) =>
     `Movimientos anteriores de este beneficiario se convirtieron en transferencias a "${account}"`,
+  reasonKeyword: (keyword: string, field: string) =>
+    `contiene «${keyword}» en ${field}: parece nómina, factura o impuesto, no un traspaso`,
+  reasonCompensated: (date: string, amount: string) =>
+    `el importe se compensa en la cuenta destino (${amount} el ${date})`,
+  reasonNotCompensated: (days: number) =>
+    `la cuenta destino no tiene el mismo importe en ±${days} días, así que puede no ser un traspaso`,
+  fieldPayee: 'el beneficiario',
+  fieldImportedPayee: 'el beneficiario importado',
+  fieldNotes: 'las notas',
   reasonCreateFromName: (account: string) => `El beneficiario o las notas mencionan la cuenta "${account}"`,
   reconcileMatchesNext: 'El saldo cuadra. Si quieres fijarlo, usa mark_reconciled con la misma fecha y saldo',
   reconcileMismatch: (difference: string) =>
@@ -339,6 +348,15 @@ const en: Messages = {
     (unique ? '' : '; there is more than one candidate'),
   reasonCreateFromHistory: (account: string) =>
     `Earlier transactions from this payee were turned into transfers to "${account}"`,
+  reasonKeyword: (keyword: string, field: string) =>
+    `contains "${keyword}" in ${field}: looks like payroll, an invoice or a tax, not a transfer`,
+  reasonCompensated: (date: string, amount: string) =>
+    `the amount is compensated in the target account (${amount} on ${date})`,
+  reasonNotCompensated: (days: number) =>
+    `the target account has no matching amount within ±${days} days, so it may not be a transfer`,
+  fieldPayee: 'the payee',
+  fieldImportedPayee: 'the imported payee',
+  fieldNotes: 'the notes',
   reasonCreateFromName: (account: string) => `The payee or notes mention the account "${account}"`,
   reconcileMatchesNext: 'The balance matches. To lock it in, call mark_reconciled with the same date and balance',
   reconcileMismatch: (difference: string) =>

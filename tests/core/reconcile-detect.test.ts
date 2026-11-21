@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectLinks, detectMerges, detectCreateTransfers, detectAll } from '../../src/core/reconcile-detect.js';
+import { detectLinks, detectMerges, detectCreateTransfers, detectAll, findKeyword, findCompensation } from '../../src/core/reconcile-detect.js';
 import { toTxRow } from '../../src/core/reconcile-data.js';
 import type { AccountInfo, DetectInput } from '../../src/core/reconcile-model.js';
 import { messagesFor } from '../../src/core/messages.js';
@@ -7,7 +7,10 @@ import { messagesFor } from '../../src/core/messages.js';
 const m = messagesFor('es');
 const tx = (over: any) => toTxRow({ account: 'A', date: '2026-09-15', amount: -100, ...over });
 const acc = (over: Partial<AccountInfo>): AccountInfo => ({ id: 'A', name: 'Cuenta', offbudget: false, closed: false, bankSynced: false, ...over });
-const input = (over: Partial<DetectInput>): DetectInput => ({ rows: [], accounts: [], history: new Map(), payeeNames: new Map(), ...over });
+const input = (over: Partial<DetectInput>): DetectInput => ({ rows: [], accounts: [], history: new Map(), payeeNames: new Map(), targetRows: [], ...over });
+
+// Fila compensadora: mismo importe con signo en la cuenta destino (la devolución que vuelve a salir).
+const comp = (over: any = {}) => tx({ id: 'comp', account: 'CASH', date: '2026-10-05', amount: -100, ...over });
 
 describe('detectLinks', () => {
   it('propone alta para la única pareja con importe contrario el mismo día', () => {
@@ -74,7 +77,7 @@ describe('detectCreateTransfers', () => {
   it('alta cuando el historial apunta a una sola cuenta manual', () => {
     const p = detectCreateTransfers(input({
       rows: [tx({ id: 'x', imported_id: 'i', imported_payee: 'CAJERO 123' })], accounts,
-      history: new Map([['cajero 123', new Set(['CASH'])]]),
+      history: new Map([['cajero 123', new Set(['CASH'])]]), targetRows: [comp()],
     }), m, new Set());
     expect(p).toEqual([expect.objectContaining({ operation: { type: 'create_transfer', transaction: 'x', account: 'CASH' }, confidence: 'alta' })]);
   });
@@ -111,6 +114,76 @@ describe('detectCreateTransfers', () => {
     expect(detectCreateTransfers(input({ rows, accounts }), m, new Set(['x']))).toEqual([]);
     const manualRow = [tx({ id: 'y', account: 'CASH', notes: 'pensión' })];
     expect(detectCreateTransfers(input({ rows: manualRow, accounts }), m, new Set())).toEqual([]);
+  });
+});
+
+describe('create_transfer: palabras clave y compensación', () => {
+  const accounts = [acc({ id: 'A', name: 'BBVA', bankSynced: true }), acc({ id: 'CASH', name: 'Efectivo' })];
+  const history = new Map([['cajero', new Set(['CASH'])]]);
+  const run = (row: any, targetRows: any[]) =>
+    detectCreateTransfers(input({ rows: [tx({ id: 'x', imported_id: 'i', imported_payee: 'CAJERO', ...row })], accounts, history, targetRows }), m, new Set());
+
+  it('alta si el historial es único, sin palabra clave y compensado; la razón cita fecha e importe', () => {
+    const [p] = run({}, [comp({ date: '2026-10-05' })]);
+    expect(p.confidence).toBe('alta');
+    expect(p.reason).toContain('2026-10-05');
+    expect(p.reason).toContain('-1.00');
+  });
+  it('dudosa con una palabra clave en las notas; la razón nombra «nómina» y el campo', () => {
+    const [p] = run({ notes: 'NÓMINA NOVIEMBRE' }, [comp()]);
+    expect(p.confidence).toBe('dudosa');
+    expect(p.reason).toContain('nómina');
+    expect(p.reason).toContain('notas');
+  });
+  it('dudosa con beneficiario APPLE.COM/BILL y notas «Factura»', () => {
+    const accs = accounts;
+    const h = new Map([['apple.com/bill', new Set(['CASH'])]]);
+    const [p] = detectCreateTransfers(input({
+      rows: [tx({ id: 'x', imported_id: 'i', imported_payee: 'APPLE.COM/BILL', notes: 'Factura' })],
+      accounts: accs, history: h, targetRows: [comp()],
+    }), m, new Set());
+    expect(p.confidence).toBe('dudosa');
+    expect(p.reason).toContain('factura');
+  });
+  it('dudosa y reasonNotCompensated(60) si la compensación está a 61 días', () => {
+    const [p] = run({}, [comp({ date: '2026-11-15' })]); // 2026-09-15 + 61 días
+    expect(p.confidence).toBe('dudosa');
+    expect(p.reason).toContain(m.reasonNotCompensated(60));
+  });
+  it('compensación a exactamente 60 días cuenta', () => {
+    expect(run({}, [comp({ date: '2026-11-14' })])[0].confidence).toBe('alta');
+  });
+  it('una compensación que ya es transferencia cuenta', () => {
+    expect(run({}, [comp({ transfer_id: 'tt' })])[0].confidence).toBe('alta');
+  });
+  it('un importe de signo contrario o de otra cuenta no compensa', () => {
+    expect(run({}, [comp({ amount: 100 })])[0].confidence).toBe('dudosa');
+    expect(run({}, [comp({ account: 'OTRA' })])[0].confidence).toBe('dudosa');
+  });
+  it('las propuestas por nombre siguen siendo dudosas aunque estén compensadas', () => {
+    const [p] = detectCreateTransfers(input({
+      rows: [tx({ id: 'x', imported_id: 'i', imported_payee: 'Pago Efectivo' })], accounts, targetRows: [comp()],
+    }), m, new Set());
+    expect(p.confidence).toBe('dudosa');
+  });
+});
+
+describe('findKeyword', () => {
+  it('coincide por palabra completa, sin acentos ni mayúsculas', () => {
+    expect(findKeyword('Clínica privada')).toBeNull();
+    expect(findKeyword('Taxi aeropuerto')).toBeNull();
+    expect(findKeyword('Pago IVA 3T')).toBe('iva');
+    expect(findKeyword('NÓMINA noviembre')).toBe('nomina');
+    expect(findKeyword('Cuota Seguridad   Social')).toBe('seguridad social');
+    expect(findKeyword('Seguridad')).toBeNull();
+  });
+});
+
+describe('findCompensation', () => {
+  it('no devuelve la propia fila ni filas de otra cuenta', () => {
+    const x = tx({ id: 'x', amount: -100 });
+    expect(findCompensation(x, 'CASH', [x])).toBeNull();
+    expect(findCompensation(x, 'CASH', [comp()])?.id).toBe('comp');
   });
 });
 
@@ -163,7 +236,7 @@ describe('clears_category', () => {
     expect(bothOff[0].clears_category).toBe(true);
   });
   it('create_transfer lo marca si origen y destino están del mismo lado y la fila tiene categoría', () => {
-    const base = { accounts: accs, history: new Map([['cajero', new Set(['CASH'])]]) };
+    const base = { accounts: accs, history: new Map([['cajero', new Set(['CASH'])]]), targetRows: [comp()] };
     const withCat = detectCreateTransfers(input({ ...base, rows: [tx({ id: 'x', imported_id: 'i', imported_payee: 'CAJERO', category: 'c1' })] }), m, new Set());
     expect(withCat[0].clears_category).toBe(true);
     const noCat = detectCreateTransfers(input({ ...base, rows: [tx({ id: 'x', imported_id: 'i', imported_payee: 'CAJERO' })] }), m, new Set());

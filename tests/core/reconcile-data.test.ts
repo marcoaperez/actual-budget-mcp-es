@@ -139,6 +139,25 @@ describe('loadDetectInput', () => {
   });
 });
 
+describe('loadDetectInput: filas de cuentas manuales', () => {
+  it('carga las filas de las cuentas manuales abiertas con ±60 días, y no consulta si no hay ninguna', async () => {
+    const accounts = async () => [
+      { id: 'bank', name: 'BBVA', balance_current: 1 }, { id: 'man', name: 'Efectivo' }, { id: 'old', name: 'Vieja', closed: true },
+    ];
+    const api = mockApi({ getAccounts: accounts, getPayees: async () => [], runQuery: vi.fn(async () => ({ data: [] })) });
+    const input = await loadDetectInput(api, { start: '2026-09-01', end: '2026-09-30' });
+    expect(input.targetRows).toEqual([]);
+    const queries = (api.q as any).mock.results.map((r: any) => r.value.calls.filter);
+    expect(queries).toContainEqual([dateRange('2026-07-03', '2026-11-29'), { account: { $oneof: ['man'] } }]);
+    const only = mockApi({
+      getAccounts: async () => [{ id: 'bank', name: 'BBVA', balance_current: 1 }], getPayees: async () => [],
+      runQuery: vi.fn(async () => ({ data: [] })),
+    });
+    await loadDetectInput(only, { start: '2026-09-01', end: '2026-09-30' });
+    expect((only.q as any).mock.results.map((r: any) => r.value.calls.filter).some((f: any[]) => f?.[1]?.account)).toBe(false);
+  });
+});
+
 describe('summarizeTx', () => {
   it('usa el nombre del beneficiario, o el importado si no lo hay, y convierte el importe', () => {
     const s = summarizeTx(row({ id: 'x', payee: 'p1', imported_id: 'i', amount: -1234 }), new Map([['p1', 'Mercadona']]), 'es-ES', 'EUR');

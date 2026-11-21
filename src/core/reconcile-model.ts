@@ -55,6 +55,8 @@ export interface DetectInput {
   /** imported_payee normalizado → cuentas a las que ya se convirtió en transferencia. */
   history: Map<string, Set<string>>;
   payeeNames: Map<string, string>;
+  /** Movimientos de cuentas manuales abiertas en el rango ±COMPENSATION_DAYS (transferencias incluidas): buscan la compensación. */
+  targetRows: TxRow[];
 }
 
 export function summarizeTx(row: TxRow, payeeNames: Map<string, string>, locale: string, currency: string) {

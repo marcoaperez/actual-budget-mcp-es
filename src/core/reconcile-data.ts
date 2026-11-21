@@ -54,10 +54,15 @@ export function toTxRow(r: any): TxRow {
 }
 
 /** Movimientos sueltos del rango: sin padres ni hijos de split (no se concilian por separado). */
-export async function loadTxRows(api: any, range: { start: string; end: string }): Promise<TxRow[]> {
+export async function loadTxRows(
+  api: any,
+  range: { start: string; end: string },
+  opts: { accountIds?: string[] } = {},
+): Promise<TxRow[]> {
+  let q = api.q('transactions').filter(dateRange(range.start, range.end));
+  if (opts.accountIds) q = q.filter({ account: { $oneof: opts.accountIds } });
   const { data } = await api.runQuery(
-    api.q('transactions')
-      .filter(dateRange(range.start, range.end))
+    q
       .options({ splits: 'all' })
       .select(TX_FIELDS),
   );
@@ -114,6 +119,9 @@ export async function loadTransferHistory(
   return history;
 }
 
+/** Margen de la comprobación de compensación (reconcile-detect.COMPENSATION_DAYS); vive aquí para no importar en círculo. */
+export const COMPENSATION_WINDOW_DAYS = 60;
+
 export async function loadDetectInput(api: any, range: { start: string; end: string }): Promise<DetectInput> {
   const [rows, accounts, payees] = await Promise.all([loadTxRows(api, range), loadAccounts(api), getPayeeIndex(api)]);
   const payeeNames = new Map(payees.all.map((p) => [p.id, p.name]));
@@ -121,5 +129,16 @@ export async function loadDetectInput(api: any, range: { start: string; end: str
     payees.all.filter((p) => p.transfer_acct).map((p) => [p.id, p.transfer_acct as string]),
   );
   const history = await loadTransferHistory(api, transferAcctByPayee);
-  return { rows, accounts, history, payeeNames };
+  // Filas de las cuentas manuales para buscar compensaciones a ±60 días (transferencias incluidas).
+  const synced = syncedAccountIds(accounts, rows);
+  const manualIds = accounts.filter((a) => !a.closed && !synced.has(a.id)).map((a) => a.id);
+  const targetRows =
+    manualIds.length === 0
+      ? []
+      : await loadTxRows(
+          api,
+          { start: addDays(range.start, -COMPENSATION_WINDOW_DAYS), end: addDays(range.end, COMPENSATION_WINDOW_DAYS) },
+          { accountIds: manualIds },
+        );
+  return { rows, accounts, history, payeeNames, targetRows };
 }

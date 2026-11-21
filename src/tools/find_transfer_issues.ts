@@ -22,6 +22,8 @@ export const tool: ToolDef = {
     'link (two existing opposite transactions in two accounts that should be one transfer), ' +
     'merge (a bank-imported transaction duplicated by a non-imported one in the same account) and ' +
     'create_transfer (a bank transaction that should be a transfer to a manually kept account). ' +
+    'create_transfer is alta only when the payee history is unambiguous, no payroll/invoice/tax keyword appears and the target account ' +
+    'has the same amount within ±60 days; otherwise dudosa (the reason says why). ' +
     'link and create_transfer between two accounts on the same side of the budget (both on-budget or both off-budget) clear the category ' +
     'of both legs, as Actual does; proposals flag it with clears_category. ' +
     'Writes nothing: pass the accepted operations to apply_reconciliation_fixes.',
