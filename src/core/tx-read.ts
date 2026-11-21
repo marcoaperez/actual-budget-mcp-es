@@ -88,13 +88,15 @@ export async function readBackSplit(
   api: any,
   id: string,
   expectedParts: number,
-  opts: { attempts?: number; delayMs?: number; sleep?: (ms: number) => Promise<void> } = {},
+  // isSettled: condición extra (p.ej. que cada parte-transferencia ya tenga transfer_id).
+  opts: { attempts?: number; delayMs?: number; sleep?: (ms: number) => Promise<void>; isSettled?: (row: any) => boolean } = {},
 ): Promise<{ row: any | null; settled: boolean }> {
   const attempts = opts.attempts ?? 5;
   const delayMs = opts.delayMs ?? 20;
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const isSettled = (row: any) =>
-    !!row?.is_parent && Array.isArray(row.subtransactions) && row.subtransactions.length === expectedParts;
+    !!row?.is_parent && Array.isArray(row.subtransactions) && row.subtransactions.length === expectedParts &&
+    (opts.isSettled ? opts.isSettled(row) : true);
   let row = await getTransactionById(api, id);
   for (let i = 1; i < attempts && !isSettled(row); i++) {
     await sleep(delayMs);
@@ -147,6 +149,8 @@ export function mapTxEcho(raw: any, locale: string, currency: string) {
     echo.splits = raw.subtransactions.map((s: any) => {
       const part: any = { category_id: s.category ?? null, ...moneyFields(s.amount ?? 0, locale, currency) };
       if (s.notes) part.notes = s.notes;
+      if (s.payee) part.payee = s.payee;
+      if (s.transfer_id) part.transfer_id = s.transfer_id;
       return part;
     });
   }

@@ -88,7 +88,13 @@ const es = {
   ruleNotFound: (id: string) => `regla inexistente: ${id} (usa get_rules para ver los ids válidos)`,
 
   // --- Guardas de estado y consistencia de escritura ---
-  cannotSplitTransfer: 'No se puede dividir una transferencia entre cuentas',
+  partNeedsCategoryOrTransfer: (index: number) =>
+    `La parte ${index} necesita category_id o transfer_account_id`,
+  partTransferSameAccount: (index: number) =>
+    `La parte ${index} es una transferencia a la propia cuenta de la transacción; elige otra cuenta`,
+  splitTransferTwinProtected: (id: string, reason: 'reconciled' | 'imported' | 'split_part') =>
+    `La otra pata de la transferencia (${id}) ${reason === 'reconciled' ? 'está conciliada' : reason === 'imported' ? 'viene del banco (tiene imported_id)' : 'es una parte de un split'}: ` +
+    'dividir esta transferencia borraría esa pata. Arréglalo antes en Actual o con remove_transaction_transfer; force no lo permite',
   alreadySplit: 'La transacción ya está dividida; edita sus partes en Actual o deshaz el split primero',
   reconciledNeedsForce: 'La transacción está conciliada; dividirla rompería la conciliación. Vuelve a intentarlo con force: true si estás seguro',
   splitChild: (id: string, parentId: string) =>
@@ -264,7 +270,13 @@ const en: Messages = {
   ruleNotFound: (id: string) => `unknown rule: ${id} (use get_rules to list valid ids)`,
 
   // --- Guardas de estado y consistencia de escritura ---
-  cannotSplitTransfer: 'Cannot split a transfer between accounts',
+  partNeedsCategoryOrTransfer: (index: number) =>
+    `Part ${index} needs category_id or transfer_account_id`,
+  partTransferSameAccount: (index: number) =>
+    `Part ${index} is a transfer to the transaction's own account; choose another account`,
+  splitTransferTwinProtected: (id: string, reason: 'reconciled' | 'imported' | 'split_part') =>
+    `The other leg of the transfer (${id}) ${reason === 'reconciled' ? 'is reconciled' : reason === 'imported' ? 'comes from the bank (has imported_id)' : 'is a split part'}: ` +
+    'splitting this transfer would delete that leg. Fix it first in Actual or with remove_transaction_transfer; force does not bypass this',
   alreadySplit: 'The transaction is already split; edit its parts in Actual or undo the split first',
   reconciledNeedsForce: 'The transaction is reconciled; splitting it would break the reconciliation. Try again with force: true if you are sure',
   splitChild: (id: string, parentId: string) =>

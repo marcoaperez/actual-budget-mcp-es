@@ -87,14 +87,6 @@ describe('split_transaction', () => {
     expect(sent[1].amount).toBe(-6000); // -18000 - (-12000)
   });
 
-  it('refuses transfers', async () => {
-    const api = mockApi({ runQuery: async () => ({ data: [{ ...original, transfer_id: 'x' }] }) });
-    await expect(tool.handler(
-      { transaction_id: T1, splits: [{ amount: -180, category_id: C1 }] },
-      { api, config: testConfig },
-    )).rejects.toThrow(/transferencia/i);
-  });
-
   it('refuses a transaction that is already split -- an in-place update would silently overwrite its existing parts', async () => {
     const alreadySplit = { ...original, is_parent: true, subtransactions: [
       { amount: -12000, category: C1 }, { amount: -6000, category: C2 },
@@ -182,5 +174,177 @@ describe('split_transaction', () => {
       { api, config: testConfig },
     );
     expect(r.echo_pending).toBe(true);
+  });
+
+  describe('transfer parts and transfer originals', () => {
+    const CHK = 'aaaaaaaa-1111-4111-8111-111111111111'; // on-budget (a1 del original)
+    const HIP = 'aaaaaaaa-2222-4222-8222-222222222222'; // off-budget
+    const SAV = 'aaaaaaaa-3333-4333-8333-333333333333'; // on-budget
+    const OLD = 'aaaaaaaa-4444-4444-8444-444444444444'; // cerrada
+    const GHOST = 'aaaaaaaa-0000-4000-8000-000000000000';
+    const P_HIP = 'pppppppp-2222-4222-8222-222222222222';
+    const P_SAV = 'pppppppp-3333-4333-8333-333333333333';
+    const P_OLD = 'pppppppp-4444-4444-8444-444444444444';
+    const P_CHK = 'pppppppp-1111-4111-8111-111111111111';
+    const P_BANK = 'pppppppp-5555-4555-8555-555555555555';
+    const TWIN = 'bbbbbbbb-1111-4111-8111-111111111111';
+
+    const ACCOUNTS = [
+      { id: CHK, name: 'Checking', offbudget: false, closed: false },
+      { id: HIP, name: 'Hipoteca Ampliación', offbudget: true, closed: false },
+      { id: SAV, name: 'Savings', offbudget: false, closed: false },
+      { id: OLD, name: 'Old', offbudget: true, closed: true },
+    ];
+    const PAYEES = [
+      { id: P_HIP, name: 'Transfer: Hipoteca', transfer_acct: HIP },
+      { id: P_SAV, name: 'Transfer: Savings', transfer_acct: SAV },
+      { id: P_OLD, name: 'Transfer: Old', transfer_acct: OLD },
+      { id: P_CHK, name: 'Transfer: Checking', transfer_acct: CHK },
+      { id: P_BANK, name: 'Banco Sabadell', transfer_acct: null },
+    ];
+    const mortgage = { ...original, account: CHK, amount: -80000 };
+    const mortgageSplit = { ...mortgage, is_parent: true, subtransactions: [
+      { amount: -60000, category: C1, payee: P_HIP, transfer_id: 'tw-1' }, { amount: -20000, category: C2 },
+    ] };
+
+    /** Enruteo por id: cada runQuery lee el id del filtro del builder. */
+    function apiById(rows: Record<string, any>, afterOrig?: any) {
+      let origReads = 0;
+      return mockApi({
+        getCategoryGroups: vi.fn(async () => GROUPS),
+        getAccounts: vi.fn(async () => ACCOUNTS),
+        getPayees: vi.fn(async () => PAYEES),
+        runQuery: vi.fn(async (q: any) => {
+          const id = q.calls.filter?.[0]?.id;
+          if (id === T1 && afterOrig) { origReads += 1; return { data: [origReads === 1 ? rows[T1] : afterOrig] }; }
+          return { data: rows[id] ? [rows[id]] : [] };
+        }),
+      });
+    }
+    const ctx = (api: any) => ({ api, config: testConfig });
+
+    it('mortgage case: transfer part with category crossing budget sides, one updateTransaction', async () => {
+      const api = apiById({ [T1]: mortgage }, mortgageSplit);
+      const r: any = await tool.handler(
+        { transaction_id: T1, splits: [
+          { amount: -600, transfer_account_id: HIP, category_id: C1 },
+          { amount: -200, category_id: C2 },
+        ] }, ctx(api));
+      expect(api.updateTransaction).toHaveBeenCalledTimes(1);
+      expect(api.updateTransaction).toHaveBeenCalledWith(T1, { subtransactions: [
+        { amount: -60000, category: C1, payee: P_HIP },
+        { amount: -20000, category: C2 },
+      ] });
+      expect(r.echo_pending).toBeUndefined();
+      expect(r.transaction.splits[0]).toMatchObject({ payee: P_HIP, transfer_id: 'tw-1' });
+      expect(r.replaced_twin_id).toBeUndefined();
+    });
+
+    it('allows a crossing transfer part without category', async () => {
+      const api = apiById({ [T1]: mortgage }, mortgageSplit);
+      await tool.handler({ transaction_id: T1, splits: [
+        { amount: -600, transfer_account_id: HIP },
+        { amount: -200, category_id: C2 },
+      ] }, ctx(api));
+      expect(api.updateTransaction).toHaveBeenCalledWith(T1, { subtransactions: [
+        { amount: -60000, payee: P_HIP },
+        { amount: -20000, category: C2 },
+      ] });
+    });
+
+    it('rejects a part with neither category nor transfer, naming the part, before writing', async () => {
+      const api = apiById({ [T1]: mortgage });
+      await expect(tool.handler({ transaction_id: T1, splits: [
+        { amount: -600, category_id: C1 }, { amount: -200 },
+      ] }, ctx(api))).rejects.toThrow(/2/);
+      expect(api.updateTransaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects a same-side transfer part that carries a category', async () => {
+      const api = apiById({ [T1]: mortgage });
+      await expect(tool.handler({ transaction_id: T1, splits: [
+        { amount: -600, transfer_account_id: SAV, category_id: C1 }, { amount: -200, category_id: C2 },
+      ] }, ctx(api))).rejects.toThrow(/Savings/);
+      expect(api.updateTransaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects a transfer part whose side cannot be confirmed when it carries a category', async () => {
+      const api = apiById({ [T1]: { ...mortgage, account: 'zz' } });
+      await expect(tool.handler({ transaction_id: T1, splits: [
+        { amount: -600, transfer_account_id: HIP, category_id: C1 }, { amount: -200, category_id: C2 },
+      ] }, ctx(api))).rejects.toThrow();
+      expect(api.updateTransaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects a transfer part to the own account, to an unknown account and to a closed account', async () => {
+      for (const [acct, re] of [[CHK, /propia|own/i], [GHOST, new RegExp(GHOST)], [OLD, /cerrada|closed/i]] as const) {
+        const api = apiById({ [T1]: mortgage });
+        await expect(tool.handler({ transaction_id: T1, splits: [
+          { amount: -600, transfer_account_id: acct }, { amount: -200, category_id: C2 },
+        ] }, ctx(api))).rejects.toThrow(re);
+        expect(api.updateTransaction).not.toHaveBeenCalled();
+      }
+    });
+
+    const transferOrig = { ...mortgage, transfer_id: TWIN, payee: P_HIP, imported_payee: ' banco sabadell ' };
+    const twinManual = { id: TWIN, account: HIP, amount: 80000, transfer_id: T1, imported_id: null, reconciled: false, is_child: false, parent_id: null };
+
+    it('splits an existing transfer whose twin is manual: replaced_twin_id and parent payee from imported_payee, same call', async () => {
+      const api = apiById({ [T1]: transferOrig, [TWIN]: twinManual }, { ...mortgageSplit, transfer_id: null, payee: P_BANK });
+      const r: any = await tool.handler({ transaction_id: T1, splits: [
+        { amount: -600, transfer_account_id: HIP, category_id: C1 }, { amount: -200, category_id: C2 },
+      ] }, ctx(api));
+      expect(api.updateTransaction).toHaveBeenCalledTimes(1);
+      expect(api.updateTransaction).toHaveBeenCalledWith(T1, {
+        payee: P_BANK,
+        subtransactions: [
+          { amount: -60000, category: C1, payee: P_HIP },
+          { amount: -20000, category: C2 },
+        ],
+      });
+      expect(r).toMatchObject({ replaced_twin_id: TWIN, parent_payee_id: P_BANK });
+    });
+
+    it('sets the parent payee to null when no existing payee matches imported_payee (never creates one)', async () => {
+      const api = apiById({ [T1]: { ...transferOrig, imported_payee: 'Nadie' }, [TWIN]: twinManual }, mortgageSplit);
+      const r: any = await tool.handler({ transaction_id: T1, splits: [
+        { amount: -600, transfer_account_id: HIP, category_id: C1 }, { amount: -200, category_id: C2 },
+      ] }, ctx(api));
+      expect((api.updateTransaction as any).mock.calls[0][1].payee).toBeNull();
+      expect(r.parent_payee_id).toBeNull();
+      expect(api.createPayee).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['reconciled', { reconciled: true }],
+      ['imported', { imported_id: 'bank-9' }],
+      ['split part', { is_child: true, parent_id: 'zzz' }],
+    ])('refuses when the twin is %s, even with force, before writing', async (_n, patch) => {
+      const api = apiById({ [T1]: transferOrig, [TWIN]: { ...twinManual, ...patch } });
+      await expect(tool.handler({ transaction_id: T1, force: true, splits: [
+        { amount: -600, transfer_account_id: HIP, category_id: C1 }, { amount: -200, category_id: C2 },
+      ] }, ctx(api))).rejects.toThrow(new RegExp(TWIN));
+      expect(api.updateTransaction).not.toHaveBeenCalled();
+    });
+
+    it('refuses a child id naming the parent', async () => {
+      const api = mockApi({ getCategoryGroups: async () => GROUPS,
+        runQuery: async () => ({ data: [{ ...asSplit, id: 'parent-1' }] }) });
+      await expect(tool.handler({ transaction_id: T1, splits: [
+        { amount: -90, category_id: C1 }, { amount: -90, category_id: C2 },
+      ] }, ctx(api))).rejects.toThrow(/parent-1/);
+      expect(api.updateTransaction).not.toHaveBeenCalled();
+    });
+
+    it('is not settled until every transfer part has transfer_id', async () => {
+      const noTwin = { ...mortgageSplit, subtransactions: [
+        { amount: -60000, category: C1, payee: P_HIP }, { amount: -20000, category: C2 },
+      ] };
+      const api = apiById({ [T1]: mortgage }, noTwin);
+      const r: any = await tool.handler({ transaction_id: T1, splits: [
+        { amount: -600, transfer_account_id: HIP, category_id: C1 }, { amount: -200, category_id: C2 },
+      ] }, ctx(api));
+      expect(r.echo_pending).toBe(true);
+    });
   });
 });
