@@ -146,6 +146,8 @@ const es = {
     `La transacción ${id} es el padre de un split y Actual no puede convertirla en transferencia: convierte sus ` +
     'partes por separado o deshaz el split primero',
   ruleDeleteRejected: (id: string) => `Actual rechazó el borrado de la regla ${id}; vuelve a consultarla con get_rules`,
+  duplicateImportedId: (id: string) => `imported_id repetido en el lote: ${id}; cada fila necesita un imported_id único`,
+  importErrors: (text: string) => `Actual rechazó la importación: ${text}`,
 
   // --- Conciliación ---
   startAfterEnd: (start: string, end: string) => `rango de fechas invertido: start_date ${start} es posterior a end_date ${end}`,
@@ -337,6 +339,8 @@ const en: Messages = {
     `Transaction ${id} is the parent of a split and Actual cannot turn it into a transfer: convert its parts ` +
     'individually or undo the split first',
   ruleDeleteRejected: (id: string) => `Actual refused to delete rule ${id}; query it again with get_rules`,
+  duplicateImportedId: (id: string) => `imported_id repeated in the batch: ${id}; each row needs a unique imported_id`,
+  importErrors: (text: string) => `Actual rejected the import: ${text}`,
 
   // --- Reconciliation ---
   startAfterEnd: (start: string, end: string) => `inverted date range: start_date ${start} is after end_date ${end}`,

@@ -121,6 +121,7 @@
     { "name": "delete_rule", "description": "Delete an automation rule" },
     { "name": "create_rule", "description": "Create an automation rule" },
     { "name": "update_rule", "description": "Replace an automation rule (full object)" },
-    { "name": "remove_transaction_transfer", "description": "Turn a transfer back into an ordinary transaction (deletes or detaches the other leg)" }
+    { "name": "remove_transaction_transfer", "description": "Turn a transfer back into an ordinary transaction (deletes or detaches the other leg)" },
+    { "name": "import_transactions", "description": "Import transactions with a stable imported_id, without duplicates (dry run by default)" }
   ]
 }
