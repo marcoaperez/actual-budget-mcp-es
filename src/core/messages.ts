@@ -148,6 +148,7 @@ const es = {
   ruleDeleteRejected: (id: string) => `Actual rechazó el borrado de la regla ${id}; vuelve a consultarla con get_rules`,
   duplicateImportedId: (id: string) => `imported_id repetido en el lote: ${id}; cada fila necesita un imported_id único`,
   importErrors: (text: string) => `Actual rechazó la importación: ${text}`,
+  importCountMismatch: (planned: string, got: string) => `Actual informó de un resultado distinto al previsto (previsto: ${planned}; real: ${got}); comprueba la cuenta con get_transactions`,
 
   // --- Conciliación ---
   startAfterEnd: (start: string, end: string) => `rango de fechas invertido: start_date ${start} es posterior a end_date ${end}`,
@@ -341,6 +342,7 @@ const en: Messages = {
   ruleDeleteRejected: (id: string) => `Actual refused to delete rule ${id}; query it again with get_rules`,
   duplicateImportedId: (id: string) => `imported_id repeated in the batch: ${id}; each row needs a unique imported_id`,
   importErrors: (text: string) => `Actual rejected the import: ${text}`,
+  importCountMismatch: (planned: string, got: string) => `Actual reported a different result than planned (planned: ${planned}; actual: ${got}); check the account with get_transactions`,
 
   // --- Reconciliation ---
   startAfterEnd: (start: string, end: string) => `inverted date range: start_date ${start} is after end_date ${end}`,

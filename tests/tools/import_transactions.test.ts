@@ -37,8 +37,8 @@ describe('import_transactions', () => {
     const imp = vi.fn(async (_a: any, _t: any, o: any) => o.dryRun ? FUZZY_PREVIEW : { errors: [], added: ['n'], updated: [], updatedPreview: [] });
     const api = mk(imp);
     const r: any = await tool.handler({ account_id: A1, transactions: ROWS, dry_run: false }, ctx(api));
-    expect(imp).toHaveBeenCalledTimes(2);
-    const [, rows, opts] = imp.mock.calls[1] as any[];
+    expect(imp).toHaveBeenCalledTimes(3);
+    const [, rows, opts] = imp.mock.calls[2] as any[];
     expect(rows).toHaveLength(1);
     expect(rows[0].imported_id).toBe('fcf-a-2026-11');
     expect(opts).toEqual({ dryRun: false, reimportDeleted: false, defaultCleared: true });
@@ -83,5 +83,30 @@ describe('import_transactions', () => {
     const imp = vi.fn(async () => ({ errors: [{ message: 'boom' }], added: [], updated: [], updatedPreview: [] }));
     await expect(tool.handler({ account_id: A1, transactions: ROWS, dry_run: false }, ctx(mk(imp)))).rejects.toThrow(/boom/);
     expect(imp).toHaveBeenCalledTimes(1);
+  });
+  it('re-previews after dropping a fuzzy row and skips rows that become fuzzy', async () => {
+    const fz = (id: string) => ({ transaction: { imported_id: id }, existing: { id: 'e1', date: 'd', imported_id: null, payee_name: 'X', amount: -5 } });
+    let n = 0;
+    const imp = vi.fn(async (_a: any, _t: any, o: any) => {
+      n += 1;
+      if (n === 1) return { errors: [], added: ['n'], updated: [], updatedPreview: [fz('fcf-a-2026-11')] };
+      if (n === 2) return { errors: [], added: [], updated: [], updatedPreview: [fz('fcf-b-2026-11')] };
+      return { errors: [], added: [], updated: [], updatedPreview: [] };
+    });
+    const r: any = await tool.handler({ account_id: A1, transactions: ROWS, dry_run: false }, ctx(mk(imp)));
+    expect(r.results.map((x: any) => x.outcome)).toEqual(['skipped_fuzzy', 'skipped_fuzzy']);
+    expect(imp.mock.calls.every((c: any[]) => c[2].dryRun === true)).toBe(true);
+  });
+  it('warns when the real response differs from the plan', async () => {
+    const imp = vi.fn(async (_a: any, _t: any, o: any) => o.dryRun
+      ? { errors: [], added: ['x', 'y'], updated: [], updatedPreview: [] }
+      : { errors: [], added: ['x'], updated: [], updatedPreview: [] });
+    const r: any = await tool.handler({ account_id: A1, transactions: ROWS, dry_run: false }, ctx(mk(imp)));
+    expect(r.warning).toMatch(/2 add/);
+  });
+  it('reports tombstones as kept_deleted', async () => {
+    const prev = { errors: [], added: [], updated: [], updatedPreview: [{ transaction: { imported_id: 'fcf-a-2026-11' }, existing: false, tombstone: true }] };
+    const r: any = await tool.handler({ account_id: A1, transactions: [ROWS[0]] }, ctx(mk(vi.fn(async () => prev))));
+    expect(r.results[0].outcome).toBe('kept_deleted');
   });
 });

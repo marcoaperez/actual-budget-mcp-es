@@ -28,7 +28,7 @@ describe('collectTools', () => {
 });
 
 describe('catalog (plan 5)', () => {
-  it('ships 13 read + 21 write tools, write-gated', () => {
+  it('ships 13 read + 22 write tools, write-gated', () => {
     expect(allTools).toHaveLength(35);
     expect(allTools.filter((t) => t.readOnly)).toHaveLength(13);
     expect(collectTools(allTools, false, messagesFor('es'))).toHaveLength(13);
@@ -56,7 +56,7 @@ describe('catalog (plan 5)', () => {
 });
 
 describe('catalogue size', () => {
-  it('exposes 13 read tools always and 34 in total with writes enabled', () => {
+  it('exposes 13 read tools always and 35 in total with writes enabled', () => {
     expect(allTools).toHaveLength(35);
     expect(allTools.filter((t) => t.readOnly)).toHaveLength(13);
   });
