@@ -77,11 +77,12 @@ const es = {
     `La transacción ${id} es una parte de un split (padre ${parentId}); edita el split completo con split_transaction o desde Actual`,
   splitParentAmount: (id: string) =>
     `La transacción ${id} es el padre de un split: importe y categoría viven en las partes; usa split_transaction para redividirla (notas, fecha, cleared y pagador sí se pueden editar aquí)`,
-  splitChildItem: 'es una parte de un split; usa split_transaction',
   splitChildFieldNotAllowed: (field: string) =>
     `En una parte de un split no se puede editar ${field}: solo categoría, notas y pagador; para cambiar importes redivide con split_transaction, o edita el padre`,
   transferPartCategorySameSide:
     'Esta parte es una transferencia entre cuentas del mismo lado del presupuesto (o no se puede confirmar): no admite categoría; quita antes la transferencia con remove_transaction_transfer',
+  transferPartCategorySameSideItem:
+    'es una transferencia entre cuentas del mismo lado del presupuesto (o no se puede confirmar): no admite categoría',
   transferPartPayeeUseRemove:
     'Esta parte es una transferencia: cambiar su pagador la deshace; usa remove_transaction_transfer para hacerlo explícito',
   splitParentItem: 'es el padre de un split; la categoría vive en las partes',
@@ -230,11 +231,12 @@ const en: Messages = {
     `Transaction ${id} is part of a split (parent ${parentId}); edit the whole split with split_transaction or from Actual`,
   splitParentAmount: (id: string) =>
     `Transaction ${id} is the parent of a split: amount and category live in the parts; use split_transaction to re-split it (notes, date, cleared and payee can be edited here)`,
-  splitChildItem: 'it is part of a split; use split_transaction',
   splitChildFieldNotAllowed: (field: string) =>
     `${field} cannot be edited on a split part: only category, notes and payee; to change amounts re-split with split_transaction, or edit the parent`,
   transferPartCategorySameSide:
     'This part is a transfer between accounts on the same budget side (or that cannot be confirmed): it takes no category; remove the transfer first with remove_transaction_transfer',
+  transferPartCategorySameSideItem:
+    'it is a transfer between accounts on the same budget side (or that cannot be confirmed): it takes no category',
   transferPartPayeeUseRemove:
     'This part is a transfer: changing its payee undoes it; use remove_transaction_transfer to do that explicitly',
   splitParentItem: 'it is the parent of a split; the category lives in the parts',

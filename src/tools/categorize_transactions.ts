@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { getCategoryIndex } from '../core/categories.js';
 import { readBackCategories } from '../core/tx-read.js';
 import { ID, type ToolDef } from '../core/types.js';
+import { getPayeeIndex } from '../core/payees.js';
+import { sameBudgetSide } from '../core/transfers.js';
 import { msg } from '../core/messages.js';
 
 const input = {
@@ -24,13 +26,17 @@ export const tool: ToolDef = {
     // Pre-lectura por lote: detecta hijos/padres de split e ids inexistentes antes de escribir.
     const ids = a.updates.map((u) => u.transaction_id);
     const { data: rows } = await api.runQuery(
-      api.q('transactions').filter({ id: { $oneof: ids } }).options({ splits: 'all' }).select(['id', 'is_child', 'is_parent']),
+      api.q('transactions').filter({ id: { $oneof: ids } }).options({ splits: 'all' }).select(['id', 'is_child', 'is_parent', 'account', 'payee', 'transfer_id']),
     );
     const info = new Map((rows as any[]).map((r) => [r.id, r]));
     // Actual no comprueba que la categoría exista: sin esto, un id inventado
     // dejaría la transacción sin categoría y la tool informaría de éxito.
     const cats = await getCategoryIndex(api);
     const m = msg(config);
+    // Cuentas sólo si hay alguna parte-transferencia en el lote (una lectura, no una por ítem).
+    const isTransferPart = (r: any) => !!r?.is_child && (!!r.transfer_id);
+    let accounts: any[] | null = null;
+    let payees: Awaited<ReturnType<typeof getPayeeIndex>> | null = null;
     const written: any[] = [];
     const succeeded: any[] = [];
     const unconfirmed: any[] = [];
@@ -42,8 +48,18 @@ export const tool: ToolDef = {
         continue;
       }
       if (meta.is_child) {
-        failed.push({ transaction_id: u.transaction_id, error: m.splitChildItem });
-        continue;
+        // Una parte normal se categoriza como cualquier fila. Una parte-transferencia sólo
+        // entre lados de presupuesto distintos; sin poder confirmarlo se rechaza.
+        payees ??= await getPayeeIndex(api);
+        const transferAcct = meta.payee ? payees.byId.get(meta.payee)?.transfer_acct ?? null : null;
+        if (isTransferPart(meta) || transferAcct) {
+          accounts ??= await api.getAccounts();
+          const same = transferAcct ? sameBudgetSide(accounts!, meta.account, transferAcct) : null;
+          if (same !== false) {
+            failed.push({ transaction_id: u.transaction_id, error: m.transferPartCategorySameSideItem });
+            continue;
+          }
+        }
       }
       if (meta.is_parent) {
         failed.push({ transaction_id: u.transaction_id, error: m.splitParentItem });

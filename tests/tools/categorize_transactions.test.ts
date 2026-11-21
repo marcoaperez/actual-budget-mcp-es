@@ -71,12 +71,12 @@ describe('categorize_transactions', () => {
     // El índice se lee una sola vez por lote.
     expect(api.getCategoryGroups).toHaveBeenCalledTimes(1);
   });
-  it('guards split children/parents and missing ids via a batched pre-read', async () => {
+  it('guards split parents and missing ids via a batched pre-read', async () => {
     const api = mockApi({
       getCategoryGroups: vi.fn(async () => GROUPS),
       runQuery: async () => ({ data: [
         { id: T1, is_child: false, is_parent: false, category: C1 },
-        { id: T2, is_child: true, is_parent: false },
+        { id: T2, is_child: false, is_parent: true },
         // t3 intentionally missing
       ] }),
     });
@@ -90,13 +90,54 @@ describe('categorize_transactions', () => {
     );
     expect(r).toMatchObject({ total: 3, success_count: 1, failure_count: 2 });
     expect(r.succeeded.map((s: any) => s.transaction_id)).toEqual([T1]);
-    const f2 = r.failed.find((f: any) => f.transaction_id === T2);
-    const f3 = r.failed.find((f: any) => f.transaction_id === T3);
-    expect(f2.error).toMatch(/split/i);
-    expect(f3.error).toMatch(/no encontrada/i);
+    expect(r.failed.find((f: any) => f.transaction_id === T2).error).toMatch(/padre de un split/i);
+    expect(r.failed.find((f: any) => f.transaction_id === T3).error).toMatch(/no encontrada/i);
     expect(api.updateTransaction).toHaveBeenCalledTimes(1);
     expect(api.updateTransaction).toHaveBeenCalledWith(T1, { category: C1 });
   });
+
+  it('categorizes split parts: plain child, cross-side transfer child; same-side fails per item', async () => {
+    const A_IN = 'aaaaaaaa-0000-4000-8000-000000000001';
+    const A_IN2 = 'aaaaaaaa-0000-4000-8000-000000000002';
+    const A_OFF = 'aaaaaaaa-0000-4000-8000-000000000003';
+    const P_OFF = 'bbbbbbbb-0000-4000-8000-000000000003';
+    const P_IN2 = 'bbbbbbbb-0000-4000-8000-000000000002';
+    const rows = [
+      { id: T1, is_child: true, is_parent: false, account: A_IN, payee: null, transfer_id: null, category: C1 },
+      { id: T2, is_child: true, is_parent: false, account: A_IN, payee: P_OFF, transfer_id: 'x', category: C1 },
+      { id: T3, is_child: true, is_parent: false, account: A_IN, payee: P_IN2, transfer_id: 'y', category: null },
+    ];
+    const api = mockApi({
+      getCategoryGroups: vi.fn(async () => GROUPS),
+      getAccounts: vi.fn(async () => [
+        { id: A_IN, offbudget: false }, { id: A_IN2, offbudget: false }, { id: A_OFF, offbudget: true },
+      ]),
+      getPayees: vi.fn(async () => [
+        { id: P_OFF, name: 'Transfer: off', transfer_acct: A_OFF },
+        { id: P_IN2, name: 'Transfer: in2', transfer_acct: A_IN2 },
+      ]),
+      runQuery: async () => ({ data: rows }),
+    });
+    const r: any = await tool.handler(
+      { updates: [
+        { transaction_id: T1, category_id: C1 },
+        { transaction_id: T2, category_id: C1 },
+        { transaction_id: T3, category_id: C1 },
+      ] },
+      { api, config: testConfig },
+    );
+    expect(r).toMatchObject({ total: 3, success_count: 2, failure_count: 1 });
+    expect(r.succeeded.map((s: any) => s.transaction_id)).toEqual([T1, T2]);
+    expect(r.failed[0]).toMatchObject({ transaction_id: T3 });
+    expect(r.failed[0].error).toMatch(/mismo lado/i);
+    expect(api.updateTransaction).toHaveBeenCalledWith(T1, { category: C1 });
+    expect(api.updateTransaction).toHaveBeenCalledWith(T2, { category: C1 });
+    expect(api.updateTransaction).not.toHaveBeenCalledWith(T3, expect.anything());
+    // Un solo índice de pagadores y una sola lectura de cuentas por lote.
+    expect(api.getPayees).toHaveBeenCalledTimes(1);
+    expect(api.getAccounts).toHaveBeenCalledTimes(1);
+  });
+
   it('only counts as succeeded what it can confirm by re-reading', async () => {
     // api.updateTransaction() resuelve antes de que la escritura aterrice, así que "no
     // lanzó" no es prueba de nada: hay que releer. Aquí t1 tarda una vuelta en reflejarse.
