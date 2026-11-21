@@ -32,10 +32,10 @@ Actual Budget self-hosted al que puedas acceder. En Macs Intel, Windows o Linux,
 
 ### Activar el acceso de escritura
 
-Con la casilla desactivada tienes las 13 tools de solo lectura. Actívala (Settings →
-Extensions → esta extensión → configurar) para añadir las 20 tools de escritura: editar y
+Con la casilla desactivada tienes las 14 tools de solo lectura. Actívala (Settings →
+Extensions → esta extensión → configurar) para añadir las 23 tools de escritura: editar y
 categorizar movimientos, splits reales, repetitivos, asignación de presupuesto, notas de
-categoría, gestión de grupos de categorías/categorías, beneficiarios/transferencias, conciliación bancaria (enlazar/fusionar duplicados, marcar conciliado) y reglas
+categoría, gestión de grupos de categorías/categorías, beneficiarios/transferencias, conciliación bancaria (enlazar/fusionar duplicados, marcar conciliado), importaciones sin duplicados, plantillas de presupuesto y reglas
 de automatización. Claude Desktop pide tu aprobación antes de cada llamada salvo que le
 concedas permiso permanente. Las tools de clasificación (categorías, grupos de categorías,
 reglas, `set_transaction_transfer`) sincronizan con el servidor tras cada escritura — las 8
@@ -47,7 +47,7 @@ por defecto.
 
 ### Actualizar
 
-Descarga el `.mcpb` más reciente y vuelve a arrastrarlo — tu configuración se conserva.
+Descarga el `.mcpb` más reciente y vuelve a arrastrarlo — tu configuración se conserva. Tras instalarlo, **cierra Claude Desktop del todo (Cmd+Q) y vuelve a abrirlo**; cerrar la ventana no basta para que arranque el servidor nuevo.
 
 ### Si todas las tools fallan tras actualizar Claude Desktop
 
@@ -126,12 +126,12 @@ Las tres primeras son obligatorias; el resto tienen valores por defecto.
 | `LOCALE` | No | `en-US` | Locale para formatear importes y fechas (ej. `es-ES`) |
 | `CURRENCY` | No | `USD` | Código ISO de moneda de 3 letras (ej. `EUR`) |
 | `SYNC_TTL_SECONDS` | No | `60` | Segundos que se cachea el sync antes de volver a sincronizar |
-| `ENABLE_WRITE` | No | `false` | Habilita las 20 tools de escritura (categorizar, splits, schedules, presupuesto, notas, grupos de categorías/categorías, beneficiarios/transferencias, reglas, conciliación) |
+| `ENABLE_WRITE` | No | `false` | Habilita las 23 tools de escritura (categorizar, splits, schedules, presupuesto, notas, grupos de categorías/categorías, beneficiarios/transferencias, reglas, conciliación, importaciones, plantillas de presupuesto) |
 | `MESSAGES_LANG` | No | `es` | Idioma de los mensajes de error del servidor: `es` o `en` |
 
 ## Herramientas disponibles
 
-El servidor expone 13 herramientas de solo lectura:
+El servidor expone 14 herramientas de solo lectura:
 
 | Herramienta | Descripción |
 |---|---|
@@ -146,23 +146,26 @@ El servidor expone 13 herramientas de solo lectura:
 | `get_budget_averages` | Media, mediana y máximo de gasto por categoría en los últimos N meses completos — insumo para preparar el presupuesto |
 | `get_schedules` | Repetitivos configurados en Actual (nombre, próxima fecha, importe) |
 | `get_rules` | Reglas de automatización con sus IDs; las reglas se ejecutan al importar movimientos y son cómo los movimientos recurrentes se autoclasifican |
-| `find_transfer_issues` | Revisa un rango de fechas en busca de transferencias sin enlazar, movimientos del banco duplicados por otros manuales y movimientos del banco que deberían ser transferencias a una cuenta manual; propone cada arreglo con su confianza (`alta`/`dudosa`) y no escribe nada |
+| `find_transfer_issues` | Revisa un rango de fechas en busca de transferencias sin enlazar, movimientos del banco duplicados por otros manuales y movimientos del banco que deberían ser transferencias a una cuenta manual; propone cada arreglo con su confianza (`alta`/`dudosa`) y no escribe nada. Desde la 2.5.0 las palabras de nómina, factura e impuestos, y las propuestas `create_transfer` sin movimiento compensatorio a ±60 días, bajan a `dudosa` con un motivo legible |
+| `get_category_note` | Lee la nota de una categoría, sus líneas `#template`/`#goal` y si la categoría toma su plantilla de presupuesto de la nota o de la interfaz de plantillas de Actual (las categorías con plantillas de interfaz ignoran las de la nota) |
 | `reconcile_account` | Compara una cuenta (id o nombre) con el saldo que da el banco al cierre de una fecha: saldo en Actual, diferencia, saldo conciliado y, si no cuadra, los arreglos propuestos para esa cuenta y los movimientos cuyo importe explica por sí solo la diferencia. No escribe nada |
 
 ## Herramientas de escritura
 
-Con `ENABLE_WRITE=true` el servidor expone además estas 20 herramientas de escritura:
+Con `ENABLE_WRITE=true` el servidor expone además estas 23 herramientas de escritura:
 
 | Herramienta | Descripción |
 |---|---|
-| `update_transaction` | Corregir un movimiento (importe, categoría, beneficiario, notas, fecha). `category_id: null` lo descategoriza; `payee_id` fija un beneficiario existente, `payee_name` lo resuelve/crea |
-| `categorize_transactions` | Categorizar en lote (máx. 50), con resultado por elemento |
-| `split_transaction` | Dividir un movimiento en partes reales, in situ (mismo id) |
+| `update_transaction` | Corregir un movimiento (importe, categoría, beneficiario, notas, fecha). `category_id: null` lo descategoriza; `payee_id` fija un beneficiario existente, `payee_name` lo resuelve/crea. También edita categoría, notas y beneficiario de las **partes de un split**. Se niega a cambiar el beneficiario de una transferencia (usa `remove_transaction_transfer`) o a poner un beneficiario de transferencia (usa `set_transaction_transfer`) |
+| `categorize_transactions` | Categorizar en lote (máx. 50), con resultado por elemento. Funciona también con las **partes de un split**; el padre de un split se rechaza (su categoría vive en las partes) |
+| `split_transaction` | Dividir un movimiento en partes reales, in situ (mismo id). Las partes pueden ser **transferencias** (`transfer_account_id`) y se puede dividir una transferencia existente; se niega si la otra pata viene del banco, está conciliada o es parte de un split |
 | `create_transaction` | Apuntar un gasto/ingreso, con splits opcionales en la creación |
 | `create_schedule` | Crear un repetitivo (schedule) |
 | `set_budget` | Asignar presupuesto en lote a varias categorías de un mes |
 | `transfer_budget` | Mover presupuesto asignado entre categorías |
-| `update_category_note` | Notas de categoría y plantillas de objetivos (templates) |
+| `update_category_note` | Notas de categoría y plantillas de objetivos (templates); avisa si la categoría usa plantillas de interfaz, que ignoran las de la nota |
+| `import_transactions` | Importa movimientos con un `imported_id` estable (p. ej. `fcf-<nombre>-2026-11`) sin duplicados. **Simulación por defecto**: la vista previa clasifica cada fila como `add`, `update`, `unchanged`, `fuzzy` (se parece a un movimiento existente), `skipped_fuzzy` o `kept_deleted`. `allow_fuzzy` importa las dudosas; las filas que borraste antes no se reimportan nunca |
+| `apply_budget_templates` | Ejecuta las plantillas de presupuesto (líneas `#template`/`#goal` en las notas de categoría) de un mes. Por defecto solo rellena las categorías sin presupuesto; `overwrite: true` las recalcula todas. **Experimental en Actual 26.11**: las categorías definidas con la interfaz de plantillas ignoran las de la nota. Los errores de plantilla se informan y no se escribe nada |
 
 **Grupos de categorías y categorías**
 
@@ -179,7 +182,8 @@ Con `ENABLE_WRITE=true` el servidor expone además estas 20 herramientas de escr
 
 | Herramienta | Descripción |
 |---|---|
-| `set_transaction_transfer` | Convertir un movimiento normal en una transferencia con otra cuenta, apuntándolo al beneficiario de transferencia de esa cuenta. Actual crea y enlaza el movimiento correspondiente en la otra cuenta. Si la cuenta destino se sincroniza con el banco, el resultado incluye un aviso (el banco importará su propia pata; para unir dos movimientos que ya existen usa `find_transfer_issues`) |
+| `set_transaction_transfer` | Convertir un movimiento normal (o una **parte de un split**) en una transferencia con otra cuenta, apuntándolo al beneficiario de transferencia de esa cuenta. Actual crea y enlaza el movimiento correspondiente en la otra cuenta. Si la cuenta destino se sincroniza con el banco, el resultado incluye un aviso (el banco importará su propia pata; para unir dos movimientos que ya existen usa `find_transfer_issues`). Acepta `category_id` para transferencias a cuentas fuera del presupuesto |
+| `remove_transaction_transfer` | Convierte una transferencia (pata normal o parte de un split) de nuevo en un movimiento ordinario con el beneficiario que indiques, y categoría y notas opcionales. Actual borra la otra pata, o solo la desvincula si es a su vez parte de un split. Se niega si la otra pata está conciliada o viene del banco salvo `force: true` (el resultado avisa entonces de que el sync bancario puede traerla de vuelta) |
 | `apply_reconciliation_fixes` | Aplica las operaciones de conciliación que aceptes (enlazar, fusionar, crear transferencia), hasta 50 por llamada; cada una se revalida antes y se informa como aplicada, omitida (con el motivo) o fallida. Nunca toca movimientos conciliados y conserva el identificador de importación del banco |
 | `mark_reconciled` | Cuando una cuenta cuadra con el banco a una fecha, marca sus movimientos sin conciliar hasta esa fecha como liquidados y conciliados (como el botón de conciliar de Actual). Si el saldo no cuadra, se niega y no escribe nada; nunca crea un apunte de ajuste |
 
@@ -197,6 +201,10 @@ Con `ENABLE_WRITE=true` el servidor expone además estas 20 herramientas de escr
 > - `split_transaction` actualiza la transacción **in situ** con sus subtransacciones — el **id no cambia**.
 > - Las tools de clasificación (categorías, grupos de categorías, reglas y `set_transaction_transfer`) **sincronizan con el servidor tras cada escritura** — las 8 tools de escritura de versiones anteriores no lo hacen, dependen del siguiente sync programado.
 > - Las tools de borrado (`delete_category`, `delete_category_group`, `delete_rule`) exigen **`confirm_delete: true`**; archivar (`hidden: true`, vía `update_category`/`update_category_group`) es la alternativa no destructiva por defecto y conserva el historial.
+
+### Corregido en 2.5.0
+
+Antes de la 2.5.0, los rangos de fechas ignoraban `end_date` en `get_transactions`, `get_spending_summary`, `get_budget_averages` y las tools de conciliación, así que podían incluir datos posteriores a `end_date` (también los resúmenes de gasto y las medias). Si sacaste cifras de esas tools antes de actualizar, vuelve a calcularlas.
 
 ## Ejemplos de uso con Claude
 

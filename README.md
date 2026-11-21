@@ -41,10 +41,10 @@ Actual Budget server you can reach. On Intel Macs, Windows or Linux, use
 
 ### Turning on write access
 
-With the checkbox off you get the 13 read-only tools. Turn it on (Settings → Extensions →
-this extension → configure) to add the 20 write tools: editing and categorizing transactions,
+With the checkbox off you get the 14 read-only tools. Turn it on (Settings → Extensions →
+this extension → configure) to add the 23 write tools: editing and categorizing transactions,
 real splits, scheduled transactions, budget assignment, category notes, managing category
-groups/categories, payees/transfers, bank reconciliation (link/merge duplicates, mark reconciled) and automation rules. Claude Desktop asks for your
+groups/categories, payees/transfers, bank reconciliation (link/merge duplicates, mark reconciled), imports without duplicates, budget templates and automation rules. Claude Desktop asks for your
 approval before each call unless you grant it standing permission. The classification tools
 (categories, category groups, rules, `set_transaction_transfer`) sync to the server after
 every write — the 8 write tools from earlier versions don't do this themselves, they rely on
@@ -55,7 +55,7 @@ alternative.
 
 ### Updating
 
-Download the newer `.mcpb` and drag it in again — your configuration is kept.
+Download the newer `.mcpb` and drag it in again — your configuration is kept. After installing it, **quit Claude Desktop completely (Cmd+Q) and reopen it**; closing the window is not enough for the new server to start.
 
 ### If every tool fails after a Claude Desktop update
 
@@ -127,12 +127,12 @@ The first three variables are required; the rest have defaults.
 | `LOCALE` | No | `en-US` | Locale for formatting amounts and dates (e.g. `es-ES`) |
 | `CURRENCY` | No | `USD` | 3-letter ISO currency code (e.g. `EUR`) |
 | `SYNC_TTL_SECONDS` | No | `60` | Seconds the sync is cached before re-syncing |
-| `ENABLE_WRITE` | No | `false` | Enables the 20 write tools (categorize, splits, schedules, budget, notes, category groups/categories, payees/transfers, rules, reconciliation) |
+| `ENABLE_WRITE` | No | `false` | Enables the 23 write tools (categorize, splits, schedules, budget, notes, category groups/categories, payees/transfers, rules, reconciliation, imports, budget templates) |
 | `MESSAGES_LANG` | No | `es` | Language of the server's error messages: `es` or `en` |
 
 ## Tools
 
-### Read tools (13)
+### Read tools (14)
 
 Always available.
 
@@ -149,23 +149,26 @@ Always available.
 | `get_budget_averages` | Mean, median and max spending per category over the last N full months — input for preparing the budget |
 | `get_schedules` | Scheduled/recurring transactions configured in Actual (name, next date, amount) |
 | `get_rules` | Automation rules with their IDs; rules run on imported transactions and are how recurring movements classify themselves |
-| `find_transfer_issues` | Review a date range for transfers that are not linked, bank-imported transactions duplicated by manual ones, and bank transactions that should be transfers to a manual account; proposes each fix with a confidence (`alta`/`dudosa`) and writes nothing |
+| `find_transfer_issues` | Review a date range for transfers that are not linked, bank-imported transactions duplicated by manual ones, and bank transactions that should be transfers to a manual account; proposes each fix with a confidence (`alta`/`dudosa`) and writes nothing. Since 2.5.0 payroll, invoice and tax keywords, and `create_transfer` proposals with no compensating movement within ±60 days, are downgraded to `dudosa` with a readable reason |
+| `get_category_note` | Read a category note, its `#template`/`#goal` lines and whether the category takes its budget template from the note or from Actual's template UI (UI categories ignore note templates) |
 | `reconcile_account` | Compare an account (id or name) with the balance the bank shows at the close of a date: Actual balance, difference, reconciled balance and, if they differ, the proposed fixes for that account and the transactions whose amount alone explains the gap. Writes nothing |
 
-### Write tools (20)
+### Write tools (23)
 
 Registered only when `ENABLE_WRITE=true`.
 
 | Tool | Description |
 |---|---|
-| `update_transaction` | Fix a transaction (amount, category, payee, notes, date). `category_id: null` uncategorizes it; `payee_id` sets a known payee, `payee_name` resolves/creates one |
-| `categorize_transactions` | Categorize in bulk (max 50), with a per-item result |
-| `split_transaction` | Split a transaction into real parts, in place (same id) |
+| `update_transaction` | Fix a transaction (amount, category, payee, notes, date). `category_id: null` uncategorizes it; `payee_id` sets a known payee, `payee_name` resolves/creates one. Also edits category, notes and payee of **split parts**. It refuses to change the payee of a transfer (use `remove_transaction_transfer`) or to set a transfer payee (use `set_transaction_transfer`) |
+| `categorize_transactions` | Categorize in bulk (max 50), with a per-item result. Works on **split parts** too; a split parent is refused (its category lives in the parts) |
+| `split_transaction` | Split a transaction into real parts, in place (same id). Parts can be **transfers** (`transfer_account_id`), and an existing transfer can be split; it refuses when the other leg is bank-imported, reconciled or a split part |
 | `create_transaction` | Record an expense/income, with optional splits at creation |
 | `create_schedule` | Create a scheduled/recurring transaction |
 | `set_budget` | Assign budget in bulk to several categories of a month |
 | `transfer_budget` | Move assigned budget between categories |
-| `update_category_note` | Category notes and goal templates |
+| `update_category_note` | Category notes and goal templates; warns when the category uses UI templates, which ignore note templates |
+| `import_transactions` | Import transactions with a stable `imported_id` (e.g. `fcf-<name>-2026-11`) without duplicates. **Dry run by default**: the preview reports each row as `add`, `update`, `unchanged`, `fuzzy` (looks like an existing movement), `skipped_fuzzy` or `kept_deleted`. `allow_fuzzy` imports the fuzzy ones; rows you deleted earlier are never re-imported |
+| `apply_budget_templates` | Run the budget templates (`#template`/`#goal` lines in category notes) for a month. By default only categories with no budget are filled; `overwrite: true` recomputes all. **Experimental in Actual 26.11**: categories defined with the template UI ignore note templates. Template errors are reported and nothing is written |
 
 **Category groups and categories**
 
@@ -182,7 +185,8 @@ Registered only when `ENABLE_WRITE=true`.
 
 | Tool | Description |
 |---|---|
-| `set_transaction_transfer` | Turn an ordinary transaction into a transfer with another account, by pointing it at that account's transfer payee. Actual creates and links the matching transaction on the other account. If the target account syncs with the bank, the result carries a warning (the bank will import its own leg; to join two existing transactions use `find_transfer_issues`) |
+| `set_transaction_transfer` | Turn an ordinary transaction (or a **split part**) into a transfer with another account, by pointing it at that account's transfer payee. Actual creates and links the matching transaction on the other account. If the target account syncs with the bank, the result carries a warning (the bank will import its own leg; to join two existing transactions use `find_transfer_issues`). `category_id` is accepted for transfers to accounts outside the budget |
+| `remove_transaction_transfer` | Turn a transfer (a normal leg or a split part) back into an ordinary transaction with the payee you give, and optional category and notes. Actual deletes the other leg, or only detaches it when it is itself a split part. Refuses when the other leg is reconciled or bank-imported unless `force: true` (the result then warns that bank sync may bring it back) |
 | `apply_reconciliation_fixes` | Apply the reconciliation operations you accepted (link, merge, create transfer), up to 50 per call; each is revalidated first and reported as applied, skipped (with the reason) or failed. Never touches reconciled transactions and keeps every bank import id |
 | `mark_reconciled` | When an account matches the bank at a date, mark its unreconciled transactions up to that date as cleared and reconciled (like Actual's reconcile button). Refuses and writes nothing if the balance does not match; never adds an adjustment transaction |
 
@@ -200,6 +204,10 @@ Registered only when `ENABLE_WRITE=true`.
 > - `split_transaction` updates the transaction **in place** with its subtransactions — the **id is unchanged**.
 > - The classification tools (categories, category groups, rules and `set_transaction_transfer`) **sync to the server after every write** — the 8 write tools from earlier versions don't, they rely on the next scheduled sync instead.
 > - The delete tools (`delete_category`, `delete_category_group`, `delete_rule`) require **`confirm_delete: true`**; archiving (`hidden: true`, via `update_category`/`update_category_group`) is the non-destructive default and keeps history intact.
+
+### Fixed in 2.5.0
+
+Before 2.5.0, date ranges ignored `end_date` in `get_transactions`, `get_spending_summary`, `get_budget_averages` and the reconciliation tools, so they could include data after `end_date` (spending summaries and averages included). If you took figures from those tools before upgrading, re-run them.
 
 ## Safety
 

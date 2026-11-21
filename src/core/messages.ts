@@ -9,12 +9,12 @@
 //   `Missing` para la misma idea; unificado).
 // - Ninguna clave se nombra como si fuera un predicado booleano (`isX`) cuando en
 //   realidad es un mensaje: se nombra por lo que dice, no por la condición que lo
-//   dispara (p.ej. `cannotSplitTransfer`, no `isTransfer`).
+//   dispara (p.ej. `splitParentItem`, no `isSplitParent`).
 // - Sufijo `Item` para la versión abreviada de un mensaje que se usa como campo
 //   `error` de un ítem dentro de un lote (categorize_transactions); la clave sin
 //   sufijo es la versión que se lanza como excepción para una única transacción
 //   (update_transaction, split_transaction). Ambas formas pueden coexistir para
-//   la misma condición (p.ej. `splitChild` / `splitChildItem`).
+//   la misma condición (p.ej. `transferPartCategorySameSide` / `transferPartCategorySameSideItem`).
 // - Prefijo de dominio (`transfer`, `schedule`, `spending`, `split`...) solo
 //   cuando agrupa varias claves relacionadas y ayuda a leerlas juntas; se omite
 //   cuando el nombre ya es autoexplicativo en solitario (`alreadySplit`,
