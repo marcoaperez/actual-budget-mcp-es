@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { getTransactionById, mapTxEcho, newIdFromDiff, reflectsFields, readBack, readBackSplit, readBackCategories } from '../../src/core/tx-read.js';
+import { getTransactionById, getTransactionRow, mapTxEcho, newIdFromDiff, reflectsFields, readBack, readBackSplit, readBackCategories } from '../../src/core/tx-read.js';
 import { mockApi } from '../helpers/mock-api.js';
 
 describe('getTransactionById', () => {
@@ -194,5 +194,24 @@ describe('mapTxEcho', () => {
     const echo: any = mapTxEcho({ id: 't2', date: '2026-07-02', account: 'a1', amount: 500 }, 'en-US', 'USD');
     expect(echo).not.toHaveProperty('splits');
     expect(echo).not.toHaveProperty('notes');
+  });
+});
+
+describe('getTransactionRow', () => {
+  it('queries by id with splits:all and returns the raw row', async () => {
+    const row = { id: 'c1', is_child: true, parent_id: 'p1' };
+    const api = mockApi({ runQuery: async () => ({ data: [row] }) });
+    expect(await getTransactionRow(api, 'c1')).toEqual(row);
+    const builder: any = (api.q as any).mock.results[0].value;
+    expect(builder.calls.options).toEqual([{ splits: 'all' }]);
+  });
+  it('returns null when not found', async () => {
+    expect(await getTransactionRow(mockApi(), 'x')).toBeNull();
+  });
+  it('readBack uses opts.read when given', async () => {
+    const read = vi.fn(async () => ({ id: 'c1', notes: 'n' }));
+    const r = await readBack(mockApi(), 'c1', { notes: 'n' }, { read });
+    expect(read).toHaveBeenCalled();
+    expect(r.settled).toBe(true);
   });
 });

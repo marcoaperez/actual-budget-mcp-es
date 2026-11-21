@@ -12,6 +12,27 @@ const C_GHOST = 'cccccccc-0000-4000-8000-000000000000';
 // Grupos de categorías del presupuesto: sólo C9 existe.
 const GROUPS = [{ id: 'g1', name: 'Gastos', is_income: false, categories: [{ id: C9, name: 'Alimentacion' }] }];
 
+// Pre-lectura agrupada -> fila padre; lectura con splits:'all' -> fila de la parte.
+// La parte refleja la escritura pedida (category/notes/payee) para que readBack la vea aplicada.
+function childApi(opts: { child?: Record<string, unknown>; [k: string]: unknown } = {}) {
+  const { child, ...overrides } = opts;
+  const parent = { id: T_PARENT, is_parent: true, date: '2026-07-01', account: 'a1',
+    subtransactions: [{ id: T_CHILD, amount: -12000, category: 'c1' }] };
+  let api: any;
+  const childRow = () => {
+    const calls = api.updateTransaction.mock.calls;
+    const written = calls.length ? calls[calls.length - 1][1] : {};
+    return { id: T_CHILD, is_child: true, parent_id: T_PARENT, account: 'a1', date: '2026-07-01',
+      amount: -12000, category: 'c1', ...child, ...written };
+  };
+  api = mockApi({
+    runQuery: async (q: any) => ({ data: [q.calls.options?.[0]?.splits === 'all' ? childRow() : parent] }),
+    getCategoryGroups: async () => GROUPS,
+    ...overrides,
+  });
+  return api;
+}
+
 describe('update_transaction', () => {
   it('converts amount to cents, passes only provided fields, echoes result', async () => {
     const api = mockApi({
@@ -35,14 +56,47 @@ describe('update_transaction', () => {
     await expect(tool.handler({ transaction_id: T_MISSING, notes: 'x' }, { api, config: testConfig }))
       .rejects.toThrow(T_MISSING);
   });
-  it('rejects editing a split child (pre-read returns the parent row)', async () => {
-    const api = mockApi({
-      runQuery: async () => ({ data: [{ id: T_PARENT, is_parent: true, date: '2026-07-01', account: 'a1',
-        subtransactions: [{ amount: -12000, category: 'c1' }, { amount: -6000, category: 'c2' }] }] }),
-    });
-    await expect(tool.handler({ transaction_id: T_CHILD, notes: 'x' }, { api, config: testConfig }))
+  it('edits the category of a split child and echoes the child with parent_id', async () => {
+    const api = childApi();
+    const r: any = await tool.handler({ transaction_id: T_CHILD, category_id: C9 }, { api, config: testConfig });
+    expect(api.updateTransaction).toHaveBeenCalledWith(T_CHILD, { category: C9 });
+    expect(r.transaction).toMatchObject({ id: T_CHILD, parent_id: T_PARENT, category_id: C9 });
+  });
+  it('edits notes and payee_name of a split child on the child id', async () => {
+    const api = childApi({ child: { notes: 'hola', payee: 'p1' }, getPayees: async () => [{ id: 'p1', name: 'Mercadona' }] });
+    await tool.handler({ transaction_id: T_CHILD, notes: 'hola', payee_name: 'mercadona' }, { api, config: testConfig });
+    expect(api.updateTransaction).toHaveBeenCalledWith(T_CHILD, { notes: 'hola', payee: 'p1' });
+  });
+  it.each([{ amount: -1 }, { date: '2026-07-02' }, { cleared: true }])('rejects %o on a split child', async (extra) => {
+    const api = childApi();
+    await expect(tool.handler({ transaction_id: T_CHILD, ...extra }, { api, config: testConfig }))
       .rejects.toThrow(/split/i);
     expect(api.updateTransaction).not.toHaveBeenCalled();
+  });
+  it('refuses payee on a child that is a transfer and points to remove_transaction_transfer', async () => {
+    const api = childApi({ child: { transfer_id: 'tw', payee: 'pt' }, getPayees: async () => [{ id: 'pt', name: 'Transfer', transfer_acct: 'a2' }] });
+    await expect(tool.handler({ transaction_id: T_CHILD, payee_name: 'X' }, { api, config: testConfig }))
+      .rejects.toThrow(/remove_transaction_transfer/);
+    expect(api.updateTransaction).not.toHaveBeenCalled();
+  });
+  it('refuses a category on a transfer child between same-side accounts', async () => {
+    const api = childApi({
+      child: { transfer_id: 'tw', payee: 'pt' },
+      getPayees: async () => [{ id: 'pt', name: 'Transfer', transfer_acct: 'a2' }],
+      getAccounts: async () => [{ id: 'a1', offbudget: false }, { id: 'a2', offbudget: false }],
+    });
+    await expect(tool.handler({ transaction_id: T_CHILD, category_id: C9 }, { api, config: testConfig }))
+      .rejects.toThrow(/remove_transaction_transfer/);
+    expect(api.updateTransaction).not.toHaveBeenCalled();
+  });
+  it('allows a category on a transfer child between on-budget and off-budget accounts', async () => {
+    const api = childApi({
+      child: { transfer_id: 'tw', payee: 'pt' },
+      getPayees: async () => [{ id: 'pt', name: 'Transfer', transfer_acct: 'a2' }],
+      getAccounts: async () => [{ id: 'a1', offbudget: false }, { id: 'a2', offbudget: true }],
+    });
+    await tool.handler({ transaction_id: T_CHILD, category_id: C9 }, { api, config: testConfig });
+    expect(api.updateTransaction).toHaveBeenCalledWith(T_CHILD, { category: C9 });
   });
   it('rejects editing amount/category of a split parent', async () => {
     const api = mockApi({

@@ -2,8 +2,9 @@ import { z } from 'zod';
 import { getCategoryIndex } from '../core/categories.js';
 import { getPayeeIndex } from '../core/payees.js';
 import { toCents } from '../core/money.js';
-import { getTransactionById, mapTxEcho, readBack } from '../core/tx-read.js';
+import { getTransactionById, getTransactionRow, mapTxEcho, readBack } from '../core/tx-read.js';
 import { ID, type ToolDef } from '../core/types.js';
+import { sameBudgetSide, transferAccountOfPayee } from '../core/transfers.js';
 import { activeMessages, msg } from '../core/messages.js';
 
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: () => activeMessages().dateFormat });
@@ -23,7 +24,7 @@ const schema = z.object(input);
 export const tool: ToolDef = {
   name: 'update_transaction',
   title: 'Update transaction',
-  description: 'Update fields of an existing transaction (category, payee, notes, date, amount, cleared). Amount in currency units. Pass category_id: null to leave it uncategorized, payee_id to set a known payee, or payee_name to resolve/create one. Returns the resulting transaction.',
+  description: 'Update fields of an existing transaction (category, payee, notes, date, amount, cleared). Amount in currency units. Pass category_id: null to leave it uncategorized, payee_id to set a known payee, or payee_name to resolve/create one. Also works on a split part (child id): only category, notes and payee are editable there. Returns the resulting transaction.',
   readOnly: false,
   // Sobrescribe los campos indicados de la transacción: destructivo (en MCP, false = solo aditivo).
   annotations: { destructiveHint: true, idempotentHint: true },
@@ -48,10 +49,29 @@ export const tool: ToolDef = {
     if (!existing) throw new Error(m.txNotFound(a.transaction_id));
     // La pre-lectura agrupada devuelve la fila PADRE cuando se le pasa el id de una parte:
     // existing.id !== a.transaction_id es el detector de hijo de split.
-    if (existing.id !== a.transaction_id) {
-      throw new Error(m.splitChild(a.transaction_id, existing.id));
+    const isChild = existing.id !== a.transaction_id;
+    let childRow: any = null;
+    if (isChild) {
+      // Una parte sólo admite categoría, notas y pagador (el resto vive en el padre).
+      for (const [field, value] of [['amount', a.amount], ['date', a.date], ['cleared', a.cleared]] as const) {
+        if (value !== undefined) throw new Error(m.splitChildFieldNotAllowed(field));
+      }
+      childRow = await getTransactionRow(api, a.transaction_id);
+      if (!childRow) throw new Error(m.txNotFound(a.transaction_id));
+      const transferAcct = await transferAccountOfPayee(api, childRow.payee ?? null);
+      const isTransfer = !!childRow.transfer_id || !!transferAcct;
+      if (isTransfer && (a.payee_id !== undefined || a.payee_name !== undefined)) {
+        throw new Error(m.transferPartPayeeUseRemove);
+      }
+      // Categoría sobre una parte-transferencia: sólo tiene sentido entre lados distintos.
+      // Sin poder confirmar el lado (cuenta desconocida) se rechaza, por prudencia.
+      if (isTransfer && a.category_id !== undefined) {
+        const accounts = await api.getAccounts();
+        const same = transferAcct ? sameBudgetSide(accounts, childRow.account, transferAcct) : null;
+        if (same !== false) throw new Error(m.transferPartCategorySameSide);
+      }
     }
-    if (existing.is_parent || (Array.isArray(existing.subtransactions) && existing.subtransactions.length > 0)) {
+    if (!isChild && (existing.is_parent || (Array.isArray(existing.subtransactions) && existing.subtransactions.length > 0))) {
       if (a.amount !== undefined || a.category_id !== undefined) {
         throw new Error(m.splitParentAmount(a.transaction_id));
       }
@@ -78,13 +98,15 @@ export const tool: ToolDef = {
       fields.payee = found ? found.id : await api.createPayee({ name: a.payee_name!.trim() });
     }
     await api.updateTransaction(a.transaction_id, fields);
-    const { row, settled } = await readBack(api, a.transaction_id, fields);
+    const { row, settled } = await readBack(api, a.transaction_id, fields, isChild ? { read: getTransactionRow } : {});
     return {
       updated: true,
       // El eco es lo LEÍDO. Si la escritura aún no se refleja se avisa en vez de
       // devolver los valores pedidos como si estuvieran guardados.
       ...(settled ? {} : { echo_pending: true, note: m.echoPending }),
-      transaction: mapTxEcho(row ?? existing, config.locale, config.currency),
+      transaction: isChild
+        ? { ...mapTxEcho(row ?? childRow, config.locale, config.currency), parent_id: (row ?? childRow).parent_id ?? existing.id }
+        : mapTxEcho(row ?? existing, config.locale, config.currency),
     };
   },
 };

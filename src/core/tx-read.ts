@@ -8,6 +8,14 @@ export async function getTransactionById(api: any, id: string): Promise<any | nu
   return (data as any[])[0] ?? null;
 }
 
+/** Fila cruda por id con splits:'all': incluye partes de split (is_child, parent_id, transfer_id). */
+export async function getTransactionRow(api: any, id: string): Promise<any | null> {
+  const { data } = await api.runQuery(
+    api.q('transactions').filter({ id }).options({ splits: 'all' }).select(['*']),
+  );
+  return (data as any[])[0] ?? null;
+}
+
 /**
  * Ids de las filas que compiten por ser "la recién creada": mismo (cuenta, fecha, importe).
  * Con splits agrupados la consulta puede arrastrar parents ajenos cuyo hijo coincide en
@@ -53,15 +61,20 @@ export async function readBack(
   api: any,
   id: string,
   fields: Record<string, any>,
-  opts: { attempts?: number; delayMs?: number; sleep?: (ms: number) => Promise<void> } = {},
+  opts: {
+    attempts?: number; delayMs?: number; sleep?: (ms: number) => Promise<void>;
+    // Lector alternativo (p.ej. getTransactionRow para leer una parte de split).
+    read?: (api: any, id: string) => Promise<any | null>;
+  } = {},
 ): Promise<{ row: any | null; settled: boolean }> {
   const attempts = opts.attempts ?? 5;
   const delayMs = opts.delayMs ?? 20;
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
-  let row = await getTransactionById(api, id);
+  const read = opts.read ?? getTransactionById;
+  let row = await read(api, id);
   for (let i = 1; i < attempts && !reflectsFields(row, fields); i++) {
     await sleep(delayMs);
-    row = await getTransactionById(api, id);
+    row = await read(api, id);
   }
   return { row, settled: reflectsFields(row, fields) };
 }

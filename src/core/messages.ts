@@ -78,6 +78,12 @@ const es = {
   splitParentAmount: (id: string) =>
     `La transacción ${id} es el padre de un split: importe y categoría viven en las partes; usa split_transaction para redividirla (notas, fecha, cleared y pagador sí se pueden editar aquí)`,
   splitChildItem: 'es una parte de un split; usa split_transaction',
+  splitChildFieldNotAllowed: (field: string) =>
+    `En una parte de un split no se puede editar ${field}: solo categoría, notas y pagador; para cambiar importes redivide con split_transaction, o edita el padre`,
+  transferPartCategorySameSide:
+    'Esta parte es una transferencia entre cuentas del mismo lado del presupuesto (o no se puede confirmar): no admite categoría; quita antes la transferencia con remove_transaction_transfer',
+  transferPartPayeeUseRemove:
+    'Esta parte es una transferencia: cambiar su pagador la deshace; usa remove_transaction_transfer para hacerlo explícito',
   splitParentItem: 'es el padre de un split; la categoría vive en las partes',
   echoPending: 'La escritura se envió pero aún no se refleja al releer; vuelve a consultar la transacción para confirmarla',
   ambiguousNewRow: 'Aparecieron varias filas nuevas con la misma cuenta, fecha e importe; se devuelve la primera. Revisa posibles duplicados en Actual',
@@ -225,6 +231,12 @@ const en: Messages = {
   splitParentAmount: (id: string) =>
     `Transaction ${id} is the parent of a split: amount and category live in the parts; use split_transaction to re-split it (notes, date, cleared and payee can be edited here)`,
   splitChildItem: 'it is part of a split; use split_transaction',
+  splitChildFieldNotAllowed: (field: string) =>
+    `${field} cannot be edited on a split part: only category, notes and payee; to change amounts re-split with split_transaction, or edit the parent`,
+  transferPartCategorySameSide:
+    'This part is a transfer between accounts on the same budget side (or that cannot be confirmed): it takes no category; remove the transfer first with remove_transaction_transfer',
+  transferPartPayeeUseRemove:
+    'This part is a transfer: changing its payee undoes it; use remove_transaction_transfer to do that explicitly',
   splitParentItem: 'it is the parent of a split; the category lives in the parts',
   echoPending: 'The write was sent but is not yet reflected on re-read; query the transaction again to confirm it',
   ambiguousNewRow: 'Several new rows appeared with the same account, date and amount; the first one is returned. Check for possible duplicates in Actual',
