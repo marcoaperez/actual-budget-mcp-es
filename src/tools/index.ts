@@ -35,5 +35,7 @@ import { tool as createRule } from './create_rule.js';
 import { tool as updateRule } from './update_rule.js';
 import { tool as removeTransactionTransfer } from './remove_transaction_transfer.js';
 import { tool as importTransactions } from './import_transactions.js';
+import { tool as getCategoryNote } from './get_category_note.js';
+import { tool as applyBudgetTemplates } from './apply_budget_templates.js';
 
-export const allTools: ToolDef[] = [getAccounts, getNetWorth, getCategories, getTransactions, getSpendingSummary, getBudgetMonth, getBudgetAverages, getSchedules, updateTransaction, categorizeTransactions, splitTransaction, createTransaction, createSchedule, setBudget, transferBudget, updateCategoryNote, createCategoryGroup, updateCategoryGroup, createCategory, updateCategory, deleteCategory, deleteCategoryGroup, getPayees, getAccountTransferPayee, setTransactionTransfer, applyReconciliationFixes, markReconciled, getRules, findTransferIssues, reconcileAccount, deleteRule, createRule, updateRule, removeTransactionTransfer, importTransactions];
+export const allTools: ToolDef[] = [getAccounts, getNetWorth, getCategories, getTransactions, getSpendingSummary, getBudgetMonth, getBudgetAverages, getSchedules, updateTransaction, categorizeTransactions, splitTransaction, createTransaction, createSchedule, setBudget, transferBudget, updateCategoryNote, createCategoryGroup, updateCategoryGroup, createCategory, updateCategory, deleteCategory, deleteCategoryGroup, getPayees, getAccountTransferPayee, setTransactionTransfer, applyReconciliationFixes, markReconciled, getRules, findTransferIssues, reconcileAccount, deleteRule, createRule, updateRule, removeTransactionTransfer, importTransactions, getCategoryNote, applyBudgetTemplates];

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { getCategoryIndex } from '../core/categories.js';
 import { ID, type ToolDef } from '../core/types.js';
+import { templateLines, templateSources } from '../core/templates.js';
 import { msg } from '../core/messages.js';
 
 const input = {
@@ -31,12 +32,16 @@ export const tool: ToolDef = {
     }
     await api.updateNote(a.category_id, a.note);
     const stored = await api.getNote(a.category_id);
+    const storedNote: string | null = (stored as any)?.note ?? null;
+    // Las categorías con plantillas por interfaz ignoran las líneas #template de la nota.
+    const ui = (await templateSources(api)).get(a.category_id) === 'ui' && templateLines(storedNote).length > 0;
     return {
       updated: true,
       category_id: a.category_id,
       category_name: name,
       previous_note: before,
-      note: (stored as any)?.note ?? null,
+      note: storedNote,
+      ...(ui ? { warning: m.uiTemplateIgnoresNote(name) } : {}),
     };
   },
 };

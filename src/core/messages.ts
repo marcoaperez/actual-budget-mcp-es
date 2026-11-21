@@ -39,6 +39,11 @@ const es = {
   payeeIdAndNameTogether: 'Indica payee_id o payee_name, no ambos',
   transferCategoriesMustDiffer: 'Las categorías de origen y destino deben ser distintas',
   spendingRangeTooLong: 'El rango de fechas no puede superar los 5 años; acorta start_date/end_date.',
+  uiTemplateIgnoresNote: (name: string) =>
+    `La categoría "${name}" usa la interfaz de plantillas de Actual (template_settings.source = ui): ignora las líneas #template/#goal de su nota. Edita la plantilla desde la interfaz o cambia la categoría a plantillas por notas.`,
+  templateErrors: (text: string) =>
+    `Actual ha encontrado errores en las plantillas y no ha escrito ningún presupuesto:\n${text}`,
+  internalUnavailable: 'La API interna de Actual no está disponible (¿presupuesto sin abrir?); no se pueden aplicar plantillas.',
   emptyNoteRequiresClear: (name: string) =>
     `Una nota vacía borra la nota existente de "${name}". Pasa clear: true para confirmar.`,
   partsDoNotSum: (sum: string, total: string, missing: boolean, diff: string) =>
@@ -233,6 +238,11 @@ const en: Messages = {
   payeeIdAndNameTogether: 'Specify payee_id or payee_name, not both',
   transferCategoriesMustDiffer: 'Source and destination categories must be different',
   spendingRangeTooLong: 'The date range cannot exceed 5 years; shorten start_date/end_date.',
+  uiTemplateIgnoresNote: (name: string) =>
+    `Category "${name}" uses Actual's template UI (template_settings.source = ui): it ignores the #template/#goal lines in its note. Edit the template from the UI or switch the category to note templates.`,
+  templateErrors: (text: string) =>
+    `Actual found errors in the templates and wrote no budget:\n${text}`,
+  internalUnavailable: "Actual's internal API is not available (budget not open?); templates cannot be applied.",
   emptyNoteRequiresClear: (name: string) =>
     `An empty note erases the existing note of "${name}". Pass clear: true to confirm.`,
   partsDoNotSum: (sum: string, total: string, missing: boolean, diff: string) =>

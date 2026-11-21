@@ -43,4 +43,13 @@ describe('update_category_note', () => {
     await expect(tool.handler({ category_id: C1, note: '' }, { api, config: testConfig }))
       .rejects.toThrow(/clear/i);
   });
+  it('avisa si la categoría usa plantillas de interfaz', async () => {
+    const api = mockApi({
+      getCategoryGroups: async () => groups,
+      getNote: async () => ({ id: C1, note: '#template 350' }),
+      runQuery: async () => ({ data: [{ id: C1, template_settings: { source: 'ui' } }] }),
+    });
+    const r: any = await tool.handler({ category_id: C1, note: '#template 350' }, { api, config: testConfig });
+    expect(r.warning).toContain('Alimentacion');
+  });
 });
