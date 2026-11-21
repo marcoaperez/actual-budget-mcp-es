@@ -69,10 +69,10 @@ registration time, not by a runtime check that could be argued around.
 
 ### Destructive operations
 
-There are no tools to delete accounts or budgets, and none that delete transactions directly.
+There are no tools to delete accounts or budgets, and no dedicated tool to delete transactions.
 The delete tools that exist (`delete_category`, `delete_category_group`, `delete_rule`)
-require `confirm_delete: true`. Transactions can still be removed as a side effect of two
-transfer operations, plus one restructuring behaviour; all are annotated
+require `confirm_delete: true`. Transactions can still be removed as a side effect of three
+guarded paths (two transfer operations and reconciliation), plus one restructuring behaviour; all are annotated
 `destructiveHint: true` so clients prompt accordingly:
 
 - **`remove_transaction_transfer` deletes the other leg of a transfer** (or only detaches it
@@ -80,11 +80,20 @@ transfer operations, plus one restructuring behaviour; all are annotated
   the other leg is reconciled or bank-imported (has `imported_id`) unless `force: true`.
 - **`split_transaction` on an existing transfer deletes its twin.** It always refuses when
   the other leg is bank-imported, reconciled or a split part.
+- **`apply_reconciliation_fixes` deletes rows.** `merge` removes the dropped duplicate
+  (`api.mergeTransactions`) and `link` may delete an orphan counterpart when reverting (and
+  merges rows). Guards: reconciled and split rows are refused, and `merge` requires the kept
+  row to be a bank import, the dropped one not, in the same account with the same amount.
+- **Writes that reach the other leg of a transfer.** Actual rewrites or moves the twin when a
+  leg's amount changes or the transfer is re-pointed. `update_transaction` (amount) and
+  `set_transaction_transfer` (re-pointing) refuse when the twin is a split part, and when it
+  is reconciled or bank-imported (`set_transaction_transfer` accepts `force: true` for those
+  two; `update_transaction` never does).
 
 - **`split_transaction` restructures the transaction in place.** Since `@actual-app/api`
   26.8.0, `updateTransaction` supports adding `subtransactions` directly — the **id is
-  preserved**. An existing split's parts cannot be re-divided without undoing the split
-  first (see the `alreadySplit` guard); that is the destructive edge case this annotation covers.
+  preserved**. An existing split's parts cannot be re-divided, and a part's amount or date cannot be
+  changed, without undoing the split in Actual first (see the `alreadySplit` guard); that is the destructive edge case this annotation covers.
 - **Overwriting tools.** `set_budget`, `transfer_budget`, `update_transaction` and
   `update_category_note` replace existing values rather than adding to them. Each returns
   an echo of the resulting state (and, for the note, the previous one) so the change is

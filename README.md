@@ -144,12 +144,12 @@ Always available.
 | `get_payees` | Payees with their IDs; a payee with `transfer_account_id` set is the payee Actual uses to represent that account in a transfer |
 | `get_account_transfer_payee` | The payee that represents a specific account in a transfer — a shortcut over `get_payees` |
 | `get_transactions` | Transactions by date range with optional filters (account, category, text, amount, uncategorized). Excludes transfers. Paginated (max 200) |
-| `get_spending_summary` | Spending aggregated by category, payee or month. Always excludes transfers |
+| `get_spending_summary` | Spending aggregated by category, payee or month. Always excludes transfers, so a categorized transfer between budget sides (e.g. the capital part of a mortgage payment sent to an off-budget loan account with a category) is not counted here, although Actual's budget does count it (a maintainer decision on changing this is pending) |
 | `get_budget_month` | A month's budget state: to-budget, income, totals and budgeted/spent/balance per category |
-| `get_budget_averages` | Mean, median and max spending per category over the last N full months — input for preparing the budget |
+| `get_budget_averages` | Mean, median and max spending per category over the last N full months — input for preparing the budget. Like `get_spending_summary` it excludes transfers, including categorized ones between budget sides |
 | `get_schedules` | Scheduled/recurring transactions configured in Actual (name, next date, amount) |
 | `get_rules` | Automation rules with their IDs; rules run on imported transactions and are how recurring movements classify themselves |
-| `find_transfer_issues` | Review a date range for transfers that are not linked, bank-imported transactions duplicated by manual ones, and bank transactions that should be transfers to a manual account; proposes each fix with a confidence (`alta`/`dudosa`) and writes nothing. Since 2.5.0 `create_transfer` proposals are downgraded to `dudosa`, with a readable reason, when the description has payroll, invoice or tax keywords or when no compensating movement exists within ±60 days |
+| `find_transfer_issues` | Review a date range for transfers that are not linked, bank-imported transactions duplicated by manual ones, and bank transactions that should be transfers to a manual account; proposes each fix with a confidence (`alta`/`dudosa`) and writes nothing. Since 2.5.0 `create_transfer` proposals are downgraded to `dudosa`, with a readable reason, when the payee name, imported payee or notes have payroll, invoice or tax keywords or when no compensating movement exists within ±60 days |
 | `get_category_note` | Read a category note, its `#template`/`#goal` lines and whether the category takes its budget template from the note or from Actual's template UI (UI categories ignore note templates) |
 | `reconcile_account` | Compare an account (id or name) with the balance the bank shows at the close of a date: Actual balance, difference, reconciled balance and, if they differ, the proposed fixes for that account and the transactions whose amount alone explains the gap. Writes nothing |
 
@@ -159,7 +159,7 @@ Registered only when `ENABLE_WRITE=true`.
 
 | Tool | Description |
 |---|---|
-| `update_transaction` | Fix a transaction (amount, category, payee, notes, date). `category_id: null` uncategorizes it; `payee_id` sets a known payee, `payee_name` resolves/creates one. Also edits category, notes and payee of **split parts**. It refuses to change the payee of a transfer (use `remove_transaction_transfer`) or to set a transfer payee (use `set_transaction_transfer`) |
+| `update_transaction` | Fix a transaction (amount, category, payee, notes, date). `category_id: null` uncategorizes it; `payee_id` sets a known payee, `payee_name` resolves/creates one. Also edits category, notes and payee of **split parts** (parts refuse amount, date and cleared; on a split parent only amount and category are refused). It refuses to change the amount of a transfer leg when the other leg is a split part, reconciled or a bank import (Actual would rewrite it), and it refuses to change the payee of a transfer (use `remove_transaction_transfer`) or to set a transfer payee (use `set_transaction_transfer`) |
 | `categorize_transactions` | Categorize in bulk (max 50), with a per-item result. Works on **split parts** too; a split parent is refused (its category lives in the parts) |
 | `split_transaction` | Split a transaction into real parts, in place (same id). Parts can be **transfers** (`transfer_account_id`), and an existing transfer can be split; it refuses when the other leg is bank-imported, reconciled or a split part |
 | `create_transaction` | Record an expense/income, with optional splits at creation |
@@ -185,9 +185,9 @@ Registered only when `ENABLE_WRITE=true`.
 
 | Tool | Description |
 |---|---|
-| `set_transaction_transfer` | Turn an ordinary transaction (or a **split part**) into a transfer with another account, by pointing it at that account's transfer payee. Actual creates and links the matching transaction on the other account. If the target account syncs with the bank, the result carries a warning (the bank will import its own leg; to join two existing transactions use `find_transfer_issues`). `category_id` is accepted for transfers to accounts outside the budget |
+| `set_transaction_transfer` | Turn an ordinary transaction (or a **split part**) into a transfer with another account, by pointing it at that account's transfer payee. Actual creates and links the matching transaction on the other account. If the target account syncs with the bank, the result carries a warning (the bank will import its own leg; to join two existing transactions use `find_transfer_issues`). `category_id` is accepted for transfers to accounts outside the budget. Re-pointing an existing transfer moves its other leg, so it is refused when that leg is a split part, and when it is reconciled or a bank import unless `force: true` |
 | `remove_transaction_transfer` | Turn a transfer (a normal leg or a split part) back into an ordinary transaction with the payee you give, and optional category and notes. Actual deletes the other leg, or only detaches it when it is itself a split part. Refuses when the other leg is reconciled or bank-imported unless `force: true` (the result then warns that bank sync may bring it back) |
-| `apply_reconciliation_fixes` | Apply the reconciliation operations you accepted (link, merge, create transfer), up to 50 per call; each is revalidated first and reported as applied, skipped (with the reason) or failed. Never touches reconciled transactions and keeps every bank import id |
+| `apply_reconciliation_fixes` | Apply the reconciliation operations you accepted (link, merge, create transfer), up to 50 per call; each is revalidated first and reported as applied, skipped (with the reason) or failed. Never touches reconciled or split transactions and keeps every bank import id. It can delete rows: `merge` removes the dropped duplicate, and `link` may delete an orphan counterpart when reverting. Guards: merge needs the kept row to be a bank import, the dropped one not, same account and amount |
 | `mark_reconciled` | When an account matches the bank at a date, mark its unreconciled transactions up to that date as cleared and reconciled (like Actual's reconcile button). Refuses and writes nothing if the balance does not match; never adds an adjustment transaction |
 
 **Rules**
@@ -199,7 +199,7 @@ Registered only when `ENABLE_WRITE=true`.
 | `delete_rule` | Delete an automation rule. Past transactions keep whatever it already applied; only future imports change |
 
 > **Notes on the write tools**
-> - They only appear when `ENABLE_WRITE=true` is set in the `env` block (restart the client after changing it).
+> - They only appear when `ENABLE_WRITE=true` is set in the `env` block (for Claude Desktop, quit it fully with Cmd+Q and reopen it after changing it).
 > - **Input amounts are in currency units** (euros/dollars, not cents); the server handles the conversion.
 > - `split_transaction` updates the transaction **in place** with its subtransactions — the **id is unchanged**.
 > - The classification tools (categories, category groups, rules and `set_transaction_transfer`) **sync to the server after every write** — the 8 write tools from earlier versions don't, they rely on the next scheduled sync instead.
@@ -211,9 +211,9 @@ Before 2.5.0, date ranges ignored `end_date` in `get_transactions`, `get_spendin
 
 ## Safety
 
-- **No dedicated transaction, account or budget-assignment delete tools.** A transaction can still disappear in two guarded paths: `remove_transaction_transfer` deletes (or detaches) the other leg of a transfer, and `split_transaction` on an existing transfer deletes its twin. Both refuse when the other leg is reconciled or bank-imported (`split_transaction` always; `remove_transaction_transfer` unless `force: true`). The only delete tools are `delete_category`, `delete_category_group` and `delete_rule`; each requires `confirm_delete: true`, and archiving (`hidden: true`) is the non-destructive default.
+- **No dedicated transaction, account or budget-assignment delete tools.** A transaction can still disappear in three guarded paths: `remove_transaction_transfer` deletes (or detaches) the other leg of a transfer, `split_transaction` on an existing transfer deletes its twin, and `apply_reconciliation_fixes` deletes the dropped duplicate on `merge` (and may delete an orphan counterpart on `link` revert; it refuses reconciled and split rows, and merge requires keep imported, drop not imported, same account and amount). The first two refuse when the other leg is reconciled or bank-imported (`split_transaction` always; `remove_transaction_transfer` unless `force: true`). The only delete tools are `delete_category`, `delete_category_group` and `delete_rule`; each requires `confirm_delete: true`, and archiving (`hidden: true`) is the non-destructive default.
 - **Write disabled by default** — write tools are never registered unless `ENABLE_WRITE=true`.
-- **Split guards** — split parents are refused (their category lives in the parts); split parts can be edited for category, notes and payee (amount and date via a re-split).
+- **Split guards** — on a split parent `update_transaction` refuses amount and category (notes, payee, date and cleared are allowed), while `categorize_transactions` and `set_transaction_transfer` refuse parents; split parts can be edited for category, notes and payee and refuse amount, date and cleared. Changing a part's amount or date requires undoing the split in Actual first.
 - Never commit your `.env`. The Actual password lives only in your local `.env` or the client config.
 
 Three things worth knowing before you enable writes:
