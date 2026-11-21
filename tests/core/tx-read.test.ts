@@ -190,6 +190,18 @@ describe('mapTxEcho', () => {
     expect(echo.splits[0]).toMatchObject({ amount: -120, category_id: 'c1' });
     expect(echo.splits[1].notes).toBe('casa');
   });
+  it('split parts carry id and the transfer account when the mapping is given', () => {
+    const echo: any = mapTxEcho({
+      id: 't1', date: '2026-07-01', account: 'a1', amount: -800,
+      subtransactions: [
+        { id: 's1', amount: -600, category: 'c1', payee: 'pt', transfer_id: 'tw' },
+        { id: 's2', amount: -200, category: 'c2' },
+      ],
+    }, 'en-US', 'USD', new Map([['pt', 'acct-hip']]));
+    expect(echo.splits[0]).toMatchObject({ id: 's1', transfer_account_id: 'acct-hip', transfer_id: 'tw' });
+    expect(echo.splits[1].id).toBe('s2');
+    expect(echo.splits[1]).not.toHaveProperty('transfer_account_id');
+  });
   it('omits splits/notes/cleared when absent', () => {
     const echo: any = mapTxEcho({ id: 't2', date: '2026-07-02', account: 'a1', amount: 500 }, 'en-US', 'USD');
     expect(echo).not.toHaveProperty('splits');

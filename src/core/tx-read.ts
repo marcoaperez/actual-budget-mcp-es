@@ -134,7 +134,11 @@ export async function readBackCategories(
 }
 
 /** Echo compacto post-escritura: ids incluidos (el LLM acaba de usarlos). */
-export function mapTxEcho(raw: any, locale: string, currency: string) {
+export function mapTxEcho(
+  raw: any, locale: string, currency: string,
+  // payee de transferencia -> cuenta destino: permite informar transfer_account_id en las partes.
+  transferAccountByPayee?: Map<string, string>,
+) {
   const echo: any = {
     id: raw.id,
     date: raw.date,
@@ -147,10 +151,12 @@ export function mapTxEcho(raw: any, locale: string, currency: string) {
   if (raw.cleared !== undefined) echo.cleared = !!raw.cleared;
   if (Array.isArray(raw.subtransactions) && raw.subtransactions.length > 0) {
     echo.splits = raw.subtransactions.map((s: any) => {
-      const part: any = { category_id: s.category ?? null, ...moneyFields(s.amount ?? 0, locale, currency) };
+      const part: any = { ...(s.id ? { id: s.id } : {}), category_id: s.category ?? null, ...moneyFields(s.amount ?? 0, locale, currency) };
       if (s.notes) part.notes = s.notes;
       if (s.payee) part.payee = s.payee;
       if (s.transfer_id) part.transfer_id = s.transfer_id;
+      const transferAcct = s.transfer_acct ?? (s.payee ? transferAccountByPayee?.get(s.payee) : undefined);
+      if (transferAcct) part.transfer_account_id = transferAcct;
       return part;
     });
   }

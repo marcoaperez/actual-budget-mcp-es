@@ -247,7 +247,7 @@ describe('split_transaction', () => {
         { amount: -200, category_id: C2 },
       ] }, ctx(api));
       expect(api.updateTransaction).toHaveBeenCalledWith(T1, { subtransactions: [
-        { amount: -60000, payee: P_HIP },
+        { amount: -60000, category: null, payee: P_HIP },
         { amount: -20000, category: C2 },
       ] });
     });
@@ -303,6 +303,39 @@ describe('split_transaction', () => {
         ],
       });
       expect(r).toMatchObject({ replaced_twin_id: TWIN, parent_payee_id: P_BANK });
+    });
+
+    it('a dangling transfer payee on the original (no transfer_id) is replaced on the parent too', async () => {
+      const dangling = { ...mortgage, payee: P_HIP, transfer_id: null, imported_payee: 'Banco Sabadell' };
+      const api = apiById({ [T1]: dangling }, mortgageSplit);
+      const r: any = await tool.handler({ transaction_id: T1, splits: [
+        { amount: -600, transfer_account_id: HIP, category_id: C1 }, { amount: -200, category_id: C2 },
+      ] }, ctx(api));
+      expect((api.updateTransaction as any).mock.calls[0][1].payee).toBe(P_BANK);
+      expect(r.parent_payee_id).toBe(P_BANK);
+      expect(r.replaced_twin_id).toBeUndefined();
+    });
+
+    it('a normal payee on the original is left alone (no parent payee written)', async () => {
+      const api = apiById({ [T1]: mortgage }, mortgageSplit);
+      await tool.handler({ transaction_id: T1, splits: [
+        { amount: -600, transfer_account_id: HIP }, { amount: -200, category_id: C2 },
+      ] }, ctx(api));
+      expect((api.updateTransaction as any).mock.calls[0][1]).not.toHaveProperty('payee');
+    });
+
+    it('echo parts carry id, and transfer parts carry transfer_account_id', async () => {
+      const after = { ...mortgageSplit, subtransactions: [
+        { id: 'part-1', amount: -60000, category: C1, payee: P_HIP, transfer_id: 'tw-1' },
+        { id: 'part-2', amount: -20000, category: C2 },
+      ] };
+      const api = apiById({ [T1]: mortgage }, after);
+      const r: any = await tool.handler({ transaction_id: T1, splits: [
+        { amount: -600, transfer_account_id: HIP, category_id: C1 }, { amount: -200, category_id: C2 },
+      ] }, ctx(api));
+      expect(r.transaction.splits[0]).toMatchObject({ id: 'part-1', transfer_account_id: HIP });
+      expect(r.transaction.splits[1].id).toBe('part-2');
+      expect(r.transaction.splits[1]).not.toHaveProperty('transfer_account_id');
     });
 
     it('sets the parent payee to null when no existing payee matches imported_payee (never creates one)', async () => {

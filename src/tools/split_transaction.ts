@@ -54,7 +54,7 @@ export const tool: ToolDef = {
     a.splits.forEach((s, i) => {
       if (!s.category_id && !s.transfer_account_id) throw new Error(m.partNeedsCategoryOrTransfer(i + 1));
     });
-    const parts: Array<{ amount: number; category?: string; notes?: string; payee?: string }> =
+    const parts: Array<{ amount: number; category?: string | null; notes?: string; payee?: string }> =
       a.splits.map((s) => ({
         amount: toCents(s.amount),
         ...(s.category_id ? { category: s.category_id } : {}),
@@ -88,6 +88,7 @@ export const tool: ToolDef = {
     // de transferencia de la cuenta convierte la parte en transferencia.
     const transferParts = a.splits.map((s, i) => ({ s, i })).filter(({ s }) => s.transfer_account_id);
     const transferPayeeIds = new Set<string>();
+    const transferAccountByPayee = new Map<string, string>();
     if (transferParts.length > 0) {
       const accounts = ((await api.getAccounts()) ?? []) as any[];
       const { byTransferAccount } = await getPayeeIndex(api);
@@ -103,7 +104,10 @@ export const tool: ToolDef = {
         const payee = byTransferAccount.get(s.transfer_account_id!);
         if (!payee) throw new Error(m.transferPayeeNotFound(s.transfer_account_id!));
         parts[i].payee = payee.id;
+        // Sin category_id la parte heredaría la categoría del original (makeChild): se anula.
+        if (parts[i].category === undefined) parts[i].category = null;
         transferPayeeIds.add(payee.id);
+        transferAccountByPayee.set(payee.id, s.transfer_account_id!);
       }
     }
 
@@ -113,6 +117,10 @@ export const tool: ToolDef = {
     const fields: Record<string, any> = { subtransactions: parts };
     let replacedTwinId: string | undefined;
     let parentPayee: string | null | undefined;
+    // Una parte sin pagador hereda el del padre (makeChild): si el original lleva un pagador de
+    // transferencia (con vínculo o colgante) se sustituye siempre, para que ninguna parte lo herede.
+    const { all } = await getPayeeIndex(api);
+    const origPayeeIsTransfer = !!orig.payee && !!all.find((p) => p.id === orig.payee)?.transfer_acct;
     if (orig.transfer_id) {
       const twin = await getTransactionRow(api, orig.transfer_id);
       if (twin) {
@@ -121,10 +129,11 @@ export const tool: ToolDef = {
         if (twin.is_child || twin.parent_id) throw new Error(m.splitTransferTwinProtected(twin.id, 'split_part'));
         replacedTwinId = twin.id;
       }
+    }
+    if (orig.transfer_id || origPayeeIsTransfer) {
       // El padre pierde el pagador de transferencia: se busca un pagador NORMAL existente
       // con el nombre importado (nunca se crea uno), si no, queda sin pagador.
       const wanted = typeof orig.imported_payee === 'string' ? orig.imported_payee.trim().toLowerCase() : '';
-      const { all } = await getPayeeIndex(api);
       parentPayee = (wanted && all.find((p) => !p.transfer_acct && (p.name ?? '').trim().toLowerCase() === wanted)?.id) || null;
       fields.payee = parentPayee;
     }
@@ -148,7 +157,7 @@ export const tool: ToolDef = {
       // El eco es lo LEÍDO. Si la escritura aún no se refleja se avisa en vez de
       // devolver los valores pedidos como si estuvieran guardados.
       ...(settled ? {} : { echo_pending: true, note: m.echoPending }),
-      transaction: mapTxEcho(row ?? { ...orig, subtransactions: parts }, config.locale, config.currency),
+      transaction: mapTxEcho(row ?? { ...orig, subtransactions: parts }, config.locale, config.currency, transferAccountByPayee),
     };
   },
 };
