@@ -109,7 +109,7 @@ Point `command` at `node` and `args` at the compiled `dist/index.js` using an ab
 }
 ```
 
-Use `"LOCALE": "en-US"` and `"CURRENCY": "USD"` for US formatting, or `"es-ES"` / `"EUR"` for Spain. Set `"ENABLE_WRITE": "true"` only when you want the write tools (see below). Restart Claude Desktop after saving so it detects the new MCP server.
+Use `"LOCALE": "en-US"` and `"CURRENCY": "USD"` for US formatting, or `"es-ES"` / `"EUR"` for Spain. Set `"ENABLE_WRITE": "true"` only when you want the write tools (see below). Quit Claude Desktop completely (Cmd+Q) and reopen it after saving so it detects the new MCP server.
 
 During development you can skip the build and run TypeScript directly with `tsx`:
 `"command": "npx"`, `"args": ["tsx", "/absolute/path/to/actual-budget-mcp-es/src/index.ts"]`.
@@ -149,7 +149,7 @@ Always available.
 | `get_budget_averages` | Mean, median and max spending per category over the last N full months — input for preparing the budget |
 | `get_schedules` | Scheduled/recurring transactions configured in Actual (name, next date, amount) |
 | `get_rules` | Automation rules with their IDs; rules run on imported transactions and are how recurring movements classify themselves |
-| `find_transfer_issues` | Review a date range for transfers that are not linked, bank-imported transactions duplicated by manual ones, and bank transactions that should be transfers to a manual account; proposes each fix with a confidence (`alta`/`dudosa`) and writes nothing. Since 2.5.0 payroll, invoice and tax keywords, and `create_transfer` proposals with no compensating movement within ±60 days, are downgraded to `dudosa` with a readable reason |
+| `find_transfer_issues` | Review a date range for transfers that are not linked, bank-imported transactions duplicated by manual ones, and bank transactions that should be transfers to a manual account; proposes each fix with a confidence (`alta`/`dudosa`) and writes nothing. Since 2.5.0 `create_transfer` proposals are downgraded to `dudosa`, with a readable reason, when the description has payroll, invoice or tax keywords or when no compensating movement exists within ±60 days |
 | `get_category_note` | Read a category note, its `#template`/`#goal` lines and whether the category takes its budget template from the note or from Actual's template UI (UI categories ignore note templates) |
 | `reconcile_account` | Compare an account (id or name) with the balance the bank shows at the close of a date: Actual balance, difference, reconciled balance and, if they differ, the proposed fixes for that account and the transactions whose amount alone explains the gap. Writes nothing |
 
@@ -211,9 +211,9 @@ Before 2.5.0, date ranges ignored `end_date` in `get_transactions`, `get_spendin
 
 ## Safety
 
-- **No transaction, account or budget-assignment delete tools** — the server cannot remove those. The only delete tools are `delete_category`, `delete_category_group` and `delete_rule`; each requires `confirm_delete: true`, and archiving (`hidden: true`) is the non-destructive default.
+- **No dedicated transaction, account or budget-assignment delete tools.** A transaction can still disappear in two guarded paths: `remove_transaction_transfer` deletes (or detaches) the other leg of a transfer, and `split_transaction` on an existing transfer deletes its twin. Both refuse when the other leg is reconciled or bank-imported (`split_transaction` always; `remove_transaction_transfer` unless `force: true`). The only delete tools are `delete_category`, `delete_category_group` and `delete_rule`; each requires `confirm_delete: true`, and archiving (`hidden: true`) is the non-destructive default.
 - **Write disabled by default** — write tools are never registered unless `ENABLE_WRITE=true`.
-- **Split guards** — the write tools guard against editing split parts or split parents directly.
+- **Split guards** — split parents are refused (their category lives in the parts); split parts can be edited for category, notes and payee (amount and date via a re-split).
 - Never commit your `.env`. The Actual password lives only in your local `.env` or the client config.
 
 Three things worth knowing before you enable writes:

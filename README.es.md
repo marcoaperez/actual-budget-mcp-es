@@ -111,7 +111,7 @@ Apunta `command` a `node` y `args` al `dist/index.js` compilado (usa una ruta ab
 Durante el desarrollo puedes evitar la compilación usando `tsx` directamente:
 `"command": "npx"`, `"args": ["tsx", "/ruta/absoluta/actual-budget-mcp-es/src/index.ts"]`.
 
-Tras guardar, reinicia Claude Desktop (o tu cliente) para que detecte el nuevo servidor MCP.
+Tras guardar, cierra Claude Desktop del todo (Cmd+Q) y vuelve a abrirlo (o reinicia tu cliente) para que detecte el nuevo servidor MCP.
 
 ### Variables de entorno
 
@@ -146,7 +146,7 @@ El servidor expone 14 herramientas de solo lectura:
 | `get_budget_averages` | Media, mediana y máximo de gasto por categoría en los últimos N meses completos — insumo para preparar el presupuesto |
 | `get_schedules` | Repetitivos configurados en Actual (nombre, próxima fecha, importe) |
 | `get_rules` | Reglas de automatización con sus IDs; las reglas se ejecutan al importar movimientos y son cómo los movimientos recurrentes se autoclasifican |
-| `find_transfer_issues` | Revisa un rango de fechas en busca de transferencias sin enlazar, movimientos del banco duplicados por otros manuales y movimientos del banco que deberían ser transferencias a una cuenta manual; propone cada arreglo con su confianza (`alta`/`dudosa`) y no escribe nada. Desde la 2.5.0 las palabras de nómina, factura e impuestos, y las propuestas `create_transfer` sin movimiento compensatorio a ±60 días, bajan a `dudosa` con un motivo legible |
+| `find_transfer_issues` | Revisa un rango de fechas en busca de transferencias sin enlazar, movimientos del banco duplicados por otros manuales y movimientos del banco que deberían ser transferencias a una cuenta manual; propone cada arreglo con su confianza (`alta`/`dudosa`) y no escribe nada. Desde la 2.5.0 las propuestas `create_transfer` bajan a `dudosa`, con un motivo legible, si la descripción lleva palabras de nómina, factura o impuestos o si no hay movimiento compensatorio a ±60 días |
 | `get_category_note` | Lee la nota de una categoría, sus líneas `#template`/`#goal` y si la categoría toma su plantilla de presupuesto de la nota o de la interfaz de plantillas de Actual (las categorías con plantillas de interfaz ignoran las de la nota) |
 | `reconcile_account` | Compara una cuenta (id o nombre) con el saldo que da el banco al cierre de una fecha: saldo en Actual, diferencia, saldo conciliado y, si no cuadra, los arreglos propuestos para esa cuenta y los movimientos cuyo importe explica por sí solo la diferencia. No escribe nada |
 
@@ -195,7 +195,7 @@ Con `ENABLE_WRITE=true` el servidor expone además estas 23 herramientas de escr
 | `update_rule` | Reemplazar una regla de automatización — la API de Actual toma el objeto completo, así que hay que reenviar todos los campos que se quieran conservar |
 | `delete_rule` | Borrar una regla de automatización. Los movimientos pasados conservan lo que la regla ya les aplicó; solo cambian las futuras importaciones |
 
-> **Escritura desactivada por defecto.** Las tools de escritura solo aparecen si defines `ENABLE_WRITE=true` en el bloque `env` de `claude_desktop_config.json` (y reinicias Claude Desktop).
+> **Escritura desactivada por defecto.** Las tools de escritura solo aparecen si defines `ENABLE_WRITE=true` en el bloque `env` de `claude_desktop_config.json` (y cierras Claude Desktop del todo con Cmd+Q y lo reabres).
 >
 > - Los **importes se dan en unidades** de la moneda configurada (euros, no céntimos); el servidor hace la conversión.
 > - `split_transaction` actualiza la transacción **in situ** con sus subtransacciones — el **id no cambia**.
@@ -223,8 +223,8 @@ Claude usará automáticamente las herramientas MCP para consultar tus datos rea
 - **NUNCA** commitear el archivo `.env` al repositorio
 - La contraseña de Actual Budget va solo en `.env` local o en la config de Claude Desktop
 - El `.gitignore` ya excluye `.env`, `node_modules/` y datos locales
-- No hay tools de borrado de transacciones, cuentas ni asignaciones de presupuesto. Las únicas tools de borrado son `delete_category`, `delete_category_group` y `delete_rule`; cada una exige `confirm_delete: true`, y archivar (`hidden: true`) es la alternativa no destructiva por defecto
-- Las tools de escritura no se registran sin `ENABLE_WRITE`; hay guardas contra editar partes/padres de un split
+- No hay tools de borrado directo de transacciones, cuentas ni asignaciones de presupuesto. Un movimiento puede desaparecer por dos vías protegidas: `remove_transaction_transfer` borra (o desvincula) la otra pata de una transferencia y `split_transaction` sobre una transferencia existente borra su gemela. Ambas se niegan si la otra pata está conciliada o viene del banco (`split_transaction` siempre; `remove_transaction_transfer` salvo `force: true`). Las únicas tools de borrado son `delete_category`, `delete_category_group` y `delete_rule`; cada una exige `confirm_delete: true`, y archivar (`hidden: true`) es la alternativa no destructiva por defecto
+- Las tools de escritura no se registran sin `ENABLE_WRITE`; guardas de split: los padres se rechazan (su categoría vive en las partes) y las partes se pueden editar en categoría, notas y beneficiario (importe y fecha, volviendo a dividir)
 
 Tres cosas que conviene saber antes de activar la escritura:
 

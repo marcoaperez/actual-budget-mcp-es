@@ -69,9 +69,17 @@ registration time, not by a runtime check that could be argued around.
 
 ### Destructive operations
 
-There are **no delete tools**: the server cannot remove transactions, accounts, categories
-or budgets. Two behaviours still deserve attention and are annotated `destructiveHint: true`
-so clients prompt accordingly:
+There are no tools to delete accounts or budgets, and none that delete transactions directly.
+The delete tools that exist (`delete_category`, `delete_category_group`, `delete_rule`)
+require `confirm_delete: true`. Transactions can still be removed as a side effect of two
+transfer operations, plus one restructuring behaviour; all are annotated
+`destructiveHint: true` so clients prompt accordingly:
+
+- **`remove_transaction_transfer` deletes the other leg of a transfer** (or only detaches it
+  when that leg is itself a split part; the result reports `twin_action`). It refuses when
+  the other leg is reconciled or bank-imported (has `imported_id`) unless `force: true`.
+- **`split_transaction` on an existing transfer deletes its twin.** It always refuses when
+  the other leg is bank-imported, reconciled or a split part.
 
 - **`split_transaction` restructures the transaction in place.** Since `@actual-app/api`
   26.8.0, `updateTransaction` supports adding `subtransactions` directly — the **id is
