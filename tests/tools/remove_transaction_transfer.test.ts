@@ -136,5 +136,6 @@ describe('remove_transaction_transfer', () => {
   it('rejects an unknown payee_id', async () => {
     const api = api2({ [T1]: leg, [TWIN]: twinRow });
     await expect(call(api, { transaction_id: T1, payee_id: 'eeeeeeee-9999-4999-8999-999999999999' })).rejects.toThrow(/pagador inexistente|unknown payee/);
+    expect(api.updateTransaction).not.toHaveBeenCalled();
   });
 });

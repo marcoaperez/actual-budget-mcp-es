@@ -71,6 +71,11 @@ export const tool: ToolDef = {
         if (same !== false) throw new Error(m.transferPartCategorySameSide);
       }
     }
+    // Una pata de transferencia normal: cambiar el pagador la deshace y Actual borra la otra
+    // pata sin pasar por las protecciones de remove_transaction_transfer.
+    if (!isChild && existing.transfer_id && (a.payee_id !== undefined || a.payee_name !== undefined)) {
+      throw new Error(m.transferLegPayeeUseRemove(a.transaction_id));
+    }
     if (!isChild && (existing.is_parent || (Array.isArray(existing.subtransactions) && existing.subtransactions.length > 0))) {
       if (a.amount !== undefined || a.category_id !== undefined) {
         throw new Error(m.splitParentAmount(a.transaction_id));
@@ -87,7 +92,10 @@ export const tool: ToolDef = {
     // silenciosamente un pagador inexistente.
     if (a.payee_id !== undefined) {
       const { byId } = await getPayeeIndex(api);
-      if (!byId.has(a.payee_id)) throw new Error(m.payeeIdNotFound(a.payee_id));
+      const known = byId.get(a.payee_id);
+      if (!known) throw new Error(m.payeeIdNotFound(a.payee_id));
+      // Un pagador de transferencia crearía una transferencia implícita: eso es set_transaction_transfer.
+      if (known.transfer_acct) throw new Error(m.payeeIdIsTransfer(a.payee_id));
       fields.payee = a.payee_id;
     }
     // payee_name se resuelve a un id: el campo crudo payee_name lo rechaza conform().

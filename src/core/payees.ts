@@ -38,6 +38,7 @@ export async function getPayeeIndex(api: any): Promise<{
  * asignarlo convertiría el movimiento en transferencia sin que nadie lo pidiera.
  */
 export async function resolvePayeeName(api: any, name: string): Promise<string> {
+  if (!name.trim()) throw new Error(activeMessages().payeeNameBlank);
   const wanted = name.trim().toLowerCase();
   const payees = ((await api.getPayees()) ?? []) as any[];
   const same = payees.filter((p) => (p.name ?? '').trim().toLowerCase() === wanted);

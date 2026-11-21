@@ -135,6 +135,38 @@ describe('update_transaction', () => {
     expect(api.createPayee).not.toHaveBeenCalled();
     expect(api.updateTransaction).not.toHaveBeenCalled();
   });
+  it.each([
+    ['payee_name', { payee_name: 'Mercadona' }],
+    ['payee_id', { payee_id: 'eeeeeeee-1111-4111-8111-111111111111' }],
+  ])('refuses %s on a normal transfer leg (use remove_transaction_transfer), no write', async (_n, extra) => {
+    const api = mockApi({
+      runQuery: async () => ({ data: [{ id: T1, date: '2026-07-01', account: 'a1', amount: -4550, transfer_id: 'tw1' }] }),
+      getPayees: async () => [{ id: 'eeeeeeee-1111-4111-8111-111111111111', name: 'Mercadona', transfer_acct: null }],
+    });
+    await expect(tool.handler({ transaction_id: T1, ...extra }, { api, config: testConfig }))
+      .rejects.toThrow(/remove_transaction_transfer/);
+    expect(api.updateTransaction).not.toHaveBeenCalled();
+    expect(api.createPayee).not.toHaveBeenCalled();
+  });
+  it('refuses a transfer payee_id on a normal non-transfer transaction, no write', async () => {
+    const P_TR = 'eeeeeeee-2222-4222-8222-222222222222';
+    const api = mockApi({
+      runQuery: async () => ({ data: [{ id: T1, date: '2026-07-01', account: 'a1', amount: -4550, transfer_id: null }] }),
+      getPayees: async () => [{ id: P_TR, name: 'Savings', transfer_acct: 'a2' }],
+    });
+    await expect(tool.handler({ transaction_id: T1, payee_id: P_TR }, { api, config: testConfig }))
+      .rejects.toThrow(/set_transaction_transfer/);
+    expect(api.updateTransaction).not.toHaveBeenCalled();
+  });
+  it('refuses a blank payee_name without creating a payee', async () => {
+    const api = mockApi({
+      runQuery: async () => ({ data: [{ id: T1, date: '2026-07-01', account: 'a1', amount: -4550 }] }),
+    });
+    await expect(tool.handler({ transaction_id: T1, payee_name: '  ' }, { api, config: testConfig }))
+      .rejects.toThrow(/vacío|empty/);
+    expect(api.createPayee).not.toHaveBeenCalled();
+    expect(api.updateTransaction).not.toHaveBeenCalled();
+  });
   it('creates a payee when payee_name is unknown and uses the returned id', async () => {
     const api = mockApi({
       runQuery: async () => ({ data: [{ id: T1, date: '2026-07-01', account: 'a1', amount: -4550 }] }),

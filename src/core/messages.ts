@@ -63,6 +63,9 @@ const es = {
   payeeIdIsTransfer: (id: string) =>
     `El pagador ${id} es de transferencia: asignarlo crearía una transferencia (usa set_transaction_transfer)`,
   notATransfer: (id: string) => `La transacción ${id} no es una transferencia`,
+  payeeNameBlank: 'payee_name no puede estar vacío',
+  transferLegPayeeUseRemove: (id: string) =>
+    `La transacción ${id} es una transferencia: cambiar su pagador la deshace y borra la otra pata; usa remove_transaction_transfer para hacerlo explícito`,
   removeTransferSplitParent: (id: string) =>
     `La transacción ${id} es el padre de un split: indica el id de la parte que es una transferencia`,
   twinProtected: (id: string, reason: 'reconciled' | 'imported') =>
@@ -236,6 +239,9 @@ const en: Messages = {
   payeeIdIsTransfer: (id: string) =>
     `Payee ${id} is a transfer payee: assigning it would create a transfer (use set_transaction_transfer)`,
   notATransfer: (id: string) => `Transaction ${id} is not a transfer`,
+  payeeNameBlank: 'payee_name cannot be empty',
+  transferLegPayeeUseRemove: (id: string) =>
+    `Transaction ${id} is a transfer: changing its payee undoes it and deletes the other leg; use remove_transaction_transfer to do that explicitly`,
   removeTransferSplitParent: (id: string) =>
     `Transaction ${id} is a split parent: pass the id of the part that is a transfer`,
   twinProtected: (id: string, reason: 'reconciled' | 'imported') =>
