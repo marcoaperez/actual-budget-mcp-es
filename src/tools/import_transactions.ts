@@ -90,6 +90,17 @@ export const tool: ToolDef = {
       });
     };
     const results = classify(preview, a.transactions);
+    // Con reimportDeleted:false Actual casa el tombstone por imported_id y, si nada cambia, lo
+    // devuelve como `ignored` sin marca de borrado (verificado en 26.11). AQL no ve las filas
+    // borradas: un `unchanged` sin fila viva es una fila borrada que se respeta.
+    const unchangedIds = results.filter((r) => r.outcome === 'unchanged').map((r) => r.imported_id);
+    if (unchangedIds.length > 0) {
+      const { data } = await api.runQuery(
+        api.q('transactions').filter({ account: a.account_id, imported_id: { $oneof: unchangedIds } }).select(['imported_id']),
+      );
+      const alive = new Set(((data ?? []) as any[]).map((r) => r.imported_id));
+      for (const r of results) if (r.outcome === 'unchanged' && !alive.has(r.imported_id)) r.outcome = 'kept_deleted';
+    }
     let warning: string | undefined;
 
     if (!a.dry_run) {

@@ -62,8 +62,24 @@ describe('import_transactions', () => {
       { transaction: { imported_id: 'fcf-a-2026-11' }, existing: { id: 'e1', date: 'd', imported_id: 'fcf-a-2026-11', payee_name: 'P', amount: 1 } },
       { transaction: { imported_id: 'fcf-b-2026-11' }, ignored: true },
     ] };
-    const r: any = await tool.handler({ account_id: A1, transactions: ROWS }, ctx(mk(vi.fn(async () => prev))));
+    const api = mk(vi.fn(async () => prev));
+    api.runQuery = vi.fn(async () => ({ data: [{ imported_id: 'fcf-b-2026-11' }] }));
+    const r: any = await tool.handler({ account_id: A1, transactions: ROWS }, ctx(api));
     expect(r.results.map((x: any) => x.outcome)).toEqual(['update', 'unchanged']);
+  });
+  it('an ignored preview entry with no live row is a deleted row (kept_deleted)', async () => {
+    // Actual 26.11 con reimportDeleted:false casa el tombstone por imported_id y, si nada cambia,
+    // lo devuelve como `ignored` (sin marca de tombstone): solo se distingue porque AQL no lo ve vivo.
+    const prev = { errors: [], added: [], updated: [], updatedPreview: [
+      { transaction: { imported_id: 'fcf-a-2026-11' }, ignored: true },
+      { transaction: { imported_id: 'fcf-b-2026-11' }, ignored: true },
+    ] };
+    const imp = vi.fn(async () => prev);
+    const api = mk(imp);
+    api.runQuery = vi.fn(async () => ({ data: [{ imported_id: 'fcf-b-2026-11' }] }));
+    const r: any = await tool.handler({ account_id: A1, transactions: ROWS, dry_run: false }, ctx(api));
+    expect(r.results.map((x: any) => x.outcome)).toEqual(['kept_deleted', 'unchanged']);
+    expect(imp).toHaveBeenCalledTimes(1);
   });
   it('rejects duplicate imported_id before any call', async () => {
     const imp = vi.fn();
