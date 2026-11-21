@@ -125,6 +125,16 @@ describe('update_transaction', () => {
     expect(api.updateTransaction).toHaveBeenCalledWith(T1, { payee: 'p1' });
     expect(api.createPayee).not.toHaveBeenCalled();
   });
+  it('refuses a payee_name that only matches a transfer payee', async () => {
+    const api = mockApi({
+      runQuery: async () => ({ data: [{ id: T1, date: '2026-07-01', account: 'a1', amount: -4550 }] }),
+      getPayees: async () => [{ id: 'p-tr', name: 'Savings', transfer_acct: 'a2' }],
+    });
+    await expect(tool.handler({ transaction_id: T1, payee_name: 'savings' }, { api, config: testConfig }))
+      .rejects.toThrow(/savings/i);
+    expect(api.createPayee).not.toHaveBeenCalled();
+    expect(api.updateTransaction).not.toHaveBeenCalled();
+  });
   it('creates a payee when payee_name is unknown and uses the returned id', async () => {
     const api = mockApi({
       runQuery: async () => ({ data: [{ id: T1, date: '2026-07-01', account: 'a1', amount: -4550 }] }),

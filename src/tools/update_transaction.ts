@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { getCategoryIndex } from '../core/categories.js';
-import { getPayeeIndex } from '../core/payees.js';
+import { getPayeeIndex, resolvePayeeName } from '../core/payees.js';
 import { toCents } from '../core/money.js';
 import { getTransactionById, getTransactionRow, mapTxEcho, readBack } from '../core/tx-read.js';
 import { ID, type ToolDef } from '../core/types.js';
@@ -92,10 +92,7 @@ export const tool: ToolDef = {
     }
     // payee_name se resuelve a un id: el campo crudo payee_name lo rechaza conform().
     if (a.payee_name !== undefined) {
-      const wantedName = a.payee_name!.trim().toLowerCase();
-      const payees = await api.getPayees();
-      const found = (payees as any[]).find((p) => (p.name ?? '').trim().toLowerCase() === wantedName);
-      fields.payee = found ? found.id : await api.createPayee({ name: a.payee_name!.trim() });
+      fields.payee = await resolvePayeeName(api, a.payee_name!);
     }
     await api.updateTransaction(a.transaction_id, fields);
     const { row, settled } = await readBack(api, a.transaction_id, fields, isChild ? { read: getTransactionRow } : {});

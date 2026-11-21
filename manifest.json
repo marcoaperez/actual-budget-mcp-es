@@ -120,6 +120,7 @@
     { "name": "reconcile_account", "description": "Compare an account with the bank balance at a date and explain the difference" },
     { "name": "delete_rule", "description": "Delete an automation rule" },
     { "name": "create_rule", "description": "Create an automation rule" },
-    { "name": "update_rule", "description": "Replace an automation rule (full object)" }
+    { "name": "update_rule", "description": "Replace an automation rule (full object)" },
+    { "name": "remove_transaction_transfer", "description": "Turn a transfer back into an ordinary transaction (deletes or detaches the other leg)" }
   ]
 }

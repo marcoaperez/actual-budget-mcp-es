@@ -57,6 +57,21 @@ const es = {
   payeeNotFound: (name: string, options: string[]) =>
     `Pagador no encontrado: "${name}"${options.length ? ` — ¿quizá: ${options.join(', ')}?` : ''}`,
   payeeIdNotFound: (id: string) => `pagador inexistente: ${id} (usa get_payees para ver los ids válidos)`,
+  payeeNameIsTransfer: (name: string) =>
+    `"${name}" es el pagador de transferencia de una cuenta: asignarlo crearía una transferencia. ` +
+    'Usa set_transaction_transfer para eso, o indica otro nombre',
+  payeeIdIsTransfer: (id: string) =>
+    `El pagador ${id} es de transferencia: asignarlo crearía una transferencia (usa set_transaction_transfer)`,
+  notATransfer: (id: string) => `La transacción ${id} no es una transferencia`,
+  removeTransferSplitParent: (id: string) =>
+    `La transacción ${id} es el padre de un split: indica el id de la parte que es una transferencia`,
+  twinProtected: (id: string, reason: 'reconciled' | 'imported') =>
+    `La otra pata de la transferencia (${id}) ${reason === 'reconciled' ? 'está conciliada' : 'viene del banco (tiene imported_id)'}: ` +
+    'quitar la transferencia la borraría o desvincularía. Usa force: true si es lo que quieres',
+  twinMayReturn: (accountName: string) =>
+    `La otra pata estaba en "${accountName}" y venía del banco: según la preferencia de reimportación de esa cuenta, ` +
+    'la sincronización bancaria puede volver a traerla',
+  payeeRequired: 'Indica payee_id o payee_name: el pagador en que se convierte la transacción',
   accountNotFound: (id: string) => `cuenta inexistente: ${id} (usa get_accounts para ver los ids válidos)`,
   accountRefNotFound: (ref: string, names: string[]) =>
     `Cuenta no encontrada: "${ref}". Cuentas abiertas: ${names.join(', ')}`,
@@ -215,6 +230,21 @@ const en: Messages = {
   payeeNotFound: (name: string, options: string[]) =>
     `Payee not found: "${name}"${options.length ? ` — maybe: ${options.join(', ')}?` : ''}`,
   payeeIdNotFound: (id: string) => `unknown payee: ${id} (use get_payees to list valid ids)`,
+  payeeNameIsTransfer: (name: string) =>
+    `"${name}" is an account's transfer payee: assigning it would create a transfer. ` +
+    'Use set_transaction_transfer for that, or pass another name',
+  payeeIdIsTransfer: (id: string) =>
+    `Payee ${id} is a transfer payee: assigning it would create a transfer (use set_transaction_transfer)`,
+  notATransfer: (id: string) => `Transaction ${id} is not a transfer`,
+  removeTransferSplitParent: (id: string) =>
+    `Transaction ${id} is a split parent: pass the id of the part that is a transfer`,
+  twinProtected: (id: string, reason: 'reconciled' | 'imported') =>
+    `The other leg of the transfer (${id}) is ${reason === 'reconciled' ? 'reconciled' : 'a bank import (has imported_id)'}: ` +
+    'removing the transfer would delete or detach it. Pass force: true if that is what you want',
+  twinMayReturn: (accountName: string) =>
+    `The other leg was in "${accountName}" and came from the bank: depending on that account's reimport preference, ` +
+    'bank sync may bring it back',
+  payeeRequired: 'Pass payee_id or payee_name: the payee the transaction becomes',
   accountNotFound: (id: string) => `unknown account: ${id} (use get_accounts to list valid ids)`,
   accountRefNotFound: (ref: string, names: string[]) =>
     `Account not found: "${ref}". Open accounts: ${names.join(', ')}`,
